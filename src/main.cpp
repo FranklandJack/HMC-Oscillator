@@ -78,28 +78,18 @@ int main(int argc, const char * argv[])
         cout << desc << "\n";
         return 1;
     }
-    /*
+    
     
     OscPotential oscPotential(lambda);
     Potential1   potential1(muSquared, lambda);
     Potential2   potential2(lambda, fSquared);
-    OscPotential& potential = oscPotential;
+    OscPotential& potential = potential1;
 
     if(vm.count("potential"))
     {
         potential = potential2;
     }
-    else
-    {
-        potential = potential1;
-    }
-    */
-
-
-
-    // Create a potential functor to model the potential
     
-    OscPotential potential(muSquared,lambda);
 
 
     /*************************************************************************************************************************
@@ -306,13 +296,13 @@ int main(int argc, const char * argv[])
     if(vm.count("potential"))
     {
         groundStateEnergy   = -2.0*lambda*fSquared*averageXSquared + 3.0 * lambda * averageXFourth;
-        sdGroundStateEnergy = sqrt(muSquared*muSquared*varianceXSquared + 9.0*lambda*lambda*varianceXFourth)/sqrt(mCount); 
+        sdGroundStateEnergy = sqrt(4.0*lambda*lambda*fSquared*fSquared*averageXSquared + 9.0*lambda*lambda*varianceXFourth)/sqrt(mCount);  
     }
 
     else
     {
         groundStateEnergy   = muSquared*averageXSquared + 3.0 * lambda * averageXFourth;
-        sdGroundStateEnergy = sqrt(4.0*lambda*lambda*fSquared*fSquared*averageXSquared + 9.0*lambda*lambda*varianceXFourth)/sqrt(mCount); 
+        sdGroundStateEnergy = sqrt(muSquared*muSquared*varianceXSquared + 9.0*lambda*lambda*varianceXFourth)/sqrt(mCount);
     }         
 
     /**********************************************************************************************************************

@@ -2,7 +2,7 @@
 #define Potential2_hpp
 #include "OscPotential.hpp"
 
-class Potential2 : OscPotential
+class Potential2 : public OscPotential
 {
 private:
     // member varible to hold the frequency of the oscillator

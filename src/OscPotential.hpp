@@ -12,7 +12,7 @@ protected:
 
 public:
     // we just need a simple constructor to initialise the functor with the values
-    OscPotential(double lambda, double muSquared);
+    OscPotential(double lambda);
 
     // overload the operator(), then when we act on an x value with the 
     // functor it will return the potential at the displacment
