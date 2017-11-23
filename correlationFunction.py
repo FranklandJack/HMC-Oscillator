@@ -3,6 +3,7 @@
 # import matplotlib for plotting input
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.interpolate import UnivariateSpline
 # import sys so that we may access command line arguments
 import sys 
 
@@ -32,8 +33,11 @@ if __name__ == "__main__":
     # close file for saftey
     filein.close()
 
+    
+
  
-    plt.plot(latticeTimeData,correlationData,'x')
+    plt.plot(latticeTimeData,correlationData,'-')
+  
     plt.title("Corelation Function vs. latticeTime")
     plt.xlabel("latticeTime")
     plt.ylabel("correlation Function")

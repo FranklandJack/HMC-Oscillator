@@ -27,7 +27,8 @@ void leapFrog(std::vector<double> &configuration, std::vector<double> &momentum,
 
 // function to calculate correlation
 
-double correlationFunction(const std::vector<double> &configuration, int n);
+double correlationFunction(const std::vector<double> &configuration, int t);
+
 
 
 #endif

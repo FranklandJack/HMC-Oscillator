@@ -108,3 +108,20 @@ void leapFrog(std::vector<double> &configuration, std::vector<double> &momentum,
 
 }
 
+double correlationFunction(const std::vector<double> &configuration, int t)
+{
+    // Make a copy of the configuration since we don't want to rotate the actual thing.
+    std::vector<double> copyConfig = configuration;
+    // Rotate the vector so the first element is now the t^th element. 
+    
+    double sum = 0;
+    for(int i = 0; i < copyConfig.size(); ++i)
+    {
+        /*std::vector<double>::iterator ith = copyConfig.begin()+i;
+        std::rotate(copyConfig.begin(),ith, copyConfig.end());*/
+        sum += copyConfig[i]*copyConfig[(t+i)%(copyConfig.size())];
+    }
+
+    return sum/configuration.size();
+}
+

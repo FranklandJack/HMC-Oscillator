@@ -7,12 +7,15 @@
 #include <chrono> //for system clock
 #include <algorithm> //for max/min
 #include <string> //for naming files
+#include <ctime>
+#include <iomanip>
 
 #include <vector> //for holding any 1-D configurations
 #include <array>
 #include <algorithm>
 #include <sstream>
 #include <boost/program_options.hpp>
+#include <boost/filesystem.hpp>
 
 #include "OscPotential.hpp"
 #include "Potential1.hpp"
@@ -27,6 +30,21 @@ int main(int argc, const char * argv[])
 {
     auto start = chrono::system_clock::now();
 
+    /*************************************************************************************************************************
+    ****************************************************** Create Output File ************************************************
+    **************************************************************************************************************************/
+    time_t startTime = chrono::system_clock::to_time_t(start);
+    string outputName = ctime(&startTime);
+    boost::filesystem::path outPath = outputName;
+    
+
+    for(int i = 2; boost::filesystem::exists(outPath) && i < 10; ++i)
+    {
+        stringstream ss;
+        ss << outPath << "(" << i << ")";
+        outPath = ss.str();
+    }
+    boost::filesystem::create_directory(outPath);
     /*************************************************************************************************************************
     ****************************************************** Input Parameters **************************************************
     **************************************************************************************************************************/
@@ -95,7 +113,7 @@ int main(int argc, const char * argv[])
     /*************************************************************************************************************************
     *************************************************** Set up Measurements **************************************************
     **************************************************************************************************************************/
-    int mCount  = configCount/mInterval;
+    int    mCount                   = configCount/mInterval;         
     int    acceptance               = 0;
 
     double averageX                 = 0.0;
@@ -116,8 +134,11 @@ int main(int argc, const char * argv[])
     double averageExpDeltaH         = 0.0;
     double averageExpDeltaH_Squared = 0.0;
 
-    vector<double> correlationFunction(latticeSize,0);
-    vector<double> correlationFunctionNormaliszation(latticeSize,0);
+    int correlationRange = 10;
+    int coOutputInterval = 1000;
+    
+    vector<double> correlation(correlationRange,0);
+    vector<double> correlationSquared(correlationRange,0);
 
     int numBins = 40;
     Histogram positionHistogram(-2.0, 2.0, numBins);
@@ -155,6 +176,10 @@ int main(int argc, const char * argv[])
 
     for(int config = 0; config < configCount+burnPeriod; ++config)
     {
+        if(config>burnPeriod && 0==config%1000)
+        {
+            cout << '\r' << config << " configurations completed..." << flush;
+        }
 
         for(auto& p : momentum)
         {
@@ -229,19 +254,17 @@ int main(int argc, const char * argv[])
             meanExpdeltaH             = exp(-deltaH);
             averageExpDeltaH         += meanExpdeltaH;
             averageExpDeltaH_Squared += meanExpdeltaH*meanExpdeltaH;
-
             
-            /* Calculate the correlation function */
+        }
 
-            for(int i = 0; i < correlationFunction.size()-1; ++i)
+        if(config>=burnPeriod && 0==config%coOutputInterval)
+        {
+            for(int i = 0; i < correlation.size(); ++i)
             {   
-                correlationFunction[i]               += configuration[0]*configuration[i+1]/mCount;
-                correlationFunctionNormaliszation[i] += configuration[0]*configuration[i]/mCount;
-            }
-
-            correlationFunction[latticeSize-1] += configuration[0]*configuration[0]/mCount;
-            correlationFunctionNormaliszation[latticeSize-1] +=configuration[0]*configuration[latticeSize-1]/mCount;
-
+                double correlationValue = correlationFunction(configuration,i)/100;
+                correlation[i] += correlationValue;
+                correlationSquared[i] += correlationValue*correlationValue;
+            } 
         }
         
         
@@ -249,6 +272,8 @@ int main(int argc, const char * argv[])
 
 
     }
+
+    cout << "\n Done!..." << endl;
 
     /*************************************************************************************************************************
     ***************************************** Calculate Observables **********************************************************
@@ -290,6 +315,13 @@ int main(int argc, const char * argv[])
     double varainceExpDeltaH   = averageExpDeltaH_Squared - averageExpDeltaH * averageExpDeltaH;
     double sdExpDeltaH         = sqrt(varainceExpDeltaH)/sqrt(mCount);
 
+    vector<double> sdCorrelation(correlation.size(),0);
+    for(int i = 0; i < sdCorrelation.size();++i)
+    {
+        double varianceCorrelation = sqrt(correlationSquared[i] - correlation[i]*correlation[i]);
+        sdCorrelation[i] = varianceCorrelation/sqrt(100);
+    }
+
     double groundStateEnergy;
     double sdGroundStateEnergy;
 
@@ -303,7 +335,9 @@ int main(int argc, const char * argv[])
     {
         groundStateEnergy   = muSquared*averageXSquared + 3.0 * lambda * averageXFourth;
         sdGroundStateEnergy = sqrt(muSquared*muSquared*varianceXSquared + 9.0*lambda*lambda*varianceXFourth)/sqrt(mCount);
-    }         
+    }      
+
+    
 
     /**********************************************************************************************************************
     ************************** OUTPUT TO TERMINAL *************************************************************************
@@ -315,7 +349,7 @@ int main(int argc, const char * argv[])
     cout << "Lattice Size              : " << latticeSize    << endl;
     cout << "Lattice Spacing           : " << latticeSpacing << endl;
     cout << "LeapFrog Stepsize         : " << lfStepSize     << endl;
-    cout << "#LeapFrog steps           : " << lfStepCount    <<  endl;
+    cout << "#LeapFrog steps           : " << lfStepCount    << endl;
     cout << "#Configurations           : " << configCount    << endl;
     cout << "Burn period               : " << burnPeriod     << endl;
     cout << "Measurement interval      : " << mInterval      << endl;
@@ -352,14 +386,14 @@ int main(int argc, const char * argv[])
     ************************************************* File Output *********************************************************
     ***********************************************************************************************************************/
 
-    ofstream wavefunction("wavefunction.dat");
+    ofstream wavefunction(outputName+"/wavefunction.dat");
     positionHistogram.normalise();
     wavefunction << positionHistogram;
 
-    ofstream correlation("correlation.dat");
-    for(int i = 0; i < correlationFunction.size(); ++i)
+    ofstream correlationOutput(outputName+"/correlation.dat");
+    for(int i = 0; i < correlation.size(); ++i)
     {
-        correlation << i << " " << correlationFunction[i]/correlationFunctionNormaliszation[i] << '\n';
+        correlationOutput << i << " " << correlation[i] << ' ' << sdCorrelation[i] << '\n';
     }
 
     /**********************************************************************************************************************
