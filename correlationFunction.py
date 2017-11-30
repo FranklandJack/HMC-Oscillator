@@ -10,6 +10,8 @@ import sys
 # define main method
 if __name__ == "__main__":
 
+
+
 	# get file from the first command line argument
     filein = open(sys.argv[1],"r")
 
@@ -19,6 +21,7 @@ if __name__ == "__main__":
     # prepare list to hold data
     correlationData = []
     latticeTimeData = []
+    errorData       = []
    
     # loop through remainder of file getting data from each line
     for line in inputData:
@@ -28,23 +31,36 @@ if __name__ == "__main__":
     	latticeTimeData.append(latticeTime)
     	correlationValue = float(token[1])
     	correlationData.append(correlationValue)
+        errorValue = float(token[2])
+        errorData.append(errorValue)
   
     
     # close file for saftey
     filein.close()
 
     
-
+    plt.figure(1)
+    plt.subplot(211)
  
     plt.plot(latticeTimeData,correlationData,'-')
+    plt.errorbar(latticeTimeData,correlationData,yerr=errorData,linestyle='none')
   
     plt.title("Corelation Function vs. latticeTime")
     plt.xlabel("latticeTime")
     plt.ylabel("correlation Function")
+    plt.yscale("linear")
     
    
-    # save the plot with file name the same as its title
-    #plt.savefig(plotTitle)
+    plt.subplot(212)
+    plt.plot(latticeTimeData,correlationData,'-')
+    plt.errorbar(latticeTimeData,correlationData,yerr=errorData,linestyle='none')
+  
+    plt.title("Corelation Function vs. latticeTime")
+    plt.xlabel("latticeTime")
+    plt.ylabel("correlation Function")
+    plt.yscale('log')
+
+
     
     # show the plot
     plt.show()

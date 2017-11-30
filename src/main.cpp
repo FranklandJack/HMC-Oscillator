@@ -7,9 +7,6 @@
 #include <chrono> //for system clock
 #include <algorithm> //for max/min
 #include <string> //for naming files
-#include <ctime>
-#include <iomanip>
-
 #include <vector> //for holding any 1-D configurations
 #include <array>
 #include <algorithm>
@@ -23,28 +20,18 @@
 #include "LatticeFunctions.hpp"
 #include "Histogram.hpp"
 
+// Lots of use of the standard library so use namespace here.
 using namespace std;
+
+// Simplifies the input options.
 namespace po = boost::program_options;
 
 int main(int argc, const char * argv[]) 
 {
+    // Begin timing.
     auto start = chrono::system_clock::now();
 
-    /*************************************************************************************************************************
-    ****************************************************** Create Output File ************************************************
-    **************************************************************************************************************************/
-    time_t startTime = chrono::system_clock::to_time_t(start);
-    string outputName = ctime(&startTime);
-    boost::filesystem::path outPath = outputName;
     
-
-    for(int i = 2; boost::filesystem::exists(outPath) && i < 10; ++i)
-    {
-        stringstream ss;
-        ss << outPath << "(" << i << ")";
-        outPath = ss.str();
-    }
-    boost::filesystem::create_directory(outPath);
     /*************************************************************************************************************************
     ****************************************************** Input Parameters **************************************************
     **************************************************************************************************************************/
@@ -84,25 +71,47 @@ int main(int argc, const char * argv[])
         ("configuration-count,c", po::value<int>(&configCount)->default_value(100000), "The number of configurations")
         ("burn-period,b", po::value<int>(&burnPeriod)->default_value(1000), "The burn period")
         ("measurement-interval,i", po::value<int>(&mInterval)->default_value(4), "The number of steps between measurements")
-        ("potential, p", "use alternative potential")
+        ("potential,p", "use alternative potential")
         ("help,h", "produce help message");
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc,argv,desc), vm);
     po::notify(vm);
 
+    // If the user asks for help display it then exit.
     if(vm.count("help"))
     {
         cout << desc << "\n";
         return 1;
     }
+
+    /*************************************************************************************************************************
+    ****************************************************** Create Output File ************************************************
+    **************************************************************************************************************************/
+    time_t startTime = chrono::system_clock::to_time_t(start);
+    string outputName = ctime(&startTime);
+    std::transform(outputName.begin(), outputName.end(), outputName.begin(), [](char ch) {return ch == ' ' ? '_' : ch;});
+    std::transform(outputName.begin(), outputName.end(), outputName.begin(), [](char ch) {return ch == ':' ? '-' : ch;});
+    outputName.erase(std::remove(outputName.begin(), outputName.end(), '\n'), outputName.end());
+    boost::filesystem::path outPath = outputName;
+    
+
+    for(int i = 2; boost::filesystem::exists(outPath) && i < 10; ++i)
+    {
+        stringstream ss;
+        ss << outPath << "(" << i << ")";
+        outPath = ss.str();
+    }
+    boost::filesystem::create_directory(outPath);
     
     
+    // Create potentials for each type.
     OscPotential oscPotential(lambda);
     Potential1   potential1(muSquared, lambda);
     Potential2   potential2(lambda, fSquared);
     OscPotential& potential = potential1;
 
+    // If user specified alternative potential use that.
     if(vm.count("potential"))
     {
         potential = potential2;
@@ -134,7 +143,7 @@ int main(int argc, const char * argv[])
     double averageExpDeltaH         = 0.0;
     double averageExpDeltaH_Squared = 0.0;
 
-    int correlationRange = 10;
+    int correlationRange = 20;
     int coOutputInterval = 1000;
     
     vector<double> correlation(correlationRange,0);
@@ -254,9 +263,16 @@ int main(int argc, const char * argv[])
             meanExpdeltaH             = exp(-deltaH);
             averageExpDeltaH         += meanExpdeltaH;
             averageExpDeltaH_Squared += meanExpdeltaH*meanExpdeltaH;
+
+            for(int i = 0; i < correlation.size(); ++i)
+            {   
+                double correlationValue = correlationFunction(configuration,i);
+                correlation[i] += correlationValue;
+                correlationSquared[i] += correlationValue*correlationValue;
+            } 
             
         }
-
+        /*
         if(config>=burnPeriod && 0==config%coOutputInterval)
         {
             for(int i = 0; i < correlation.size(); ++i)
@@ -266,7 +282,7 @@ int main(int argc, const char * argv[])
                 correlationSquared[i] += correlationValue*correlationValue;
             } 
         }
-        
+        */
         
         
 
@@ -290,6 +306,11 @@ int main(int argc, const char * argv[])
     averageKE_Squared        /= mCount;
     averageExpDeltaH         /= mCount;
     averageExpDeltaH_Squared /= mCount;
+
+    for(auto &x : correlation) x /= mCount;
+    
+    for(auto &x : correlationSquared) x /= mCount;
+     
     
 
     double acceptanceRate = static_cast<double>(acceptance)/(configCount);
@@ -318,8 +339,8 @@ int main(int argc, const char * argv[])
     vector<double> sdCorrelation(correlation.size(),0);
     for(int i = 0; i < sdCorrelation.size();++i)
     {
-        double varianceCorrelation = sqrt(correlationSquared[i] - correlation[i]*correlation[i]);
-        sdCorrelation[i] = varianceCorrelation/sqrt(100);
+        double varianceCorrelation = correlationSquared[i] - correlation[i]*correlation[i];
+        sdCorrelation[i] = sqrt(varianceCorrelation)/sqrt(mCount);
     }
 
     double groundStateEnergy;
@@ -335,7 +356,24 @@ int main(int argc, const char * argv[])
     {
         groundStateEnergy   = muSquared*averageXSquared + 3.0 * lambda * averageXFourth;
         sdGroundStateEnergy = sqrt(muSquared*muSquared*varianceXSquared + 9.0*lambda*lambda*varianceXFourth)/sqrt(mCount);
-    }      
+    }  
+
+    double averageDeltaE   = 0;
+    double averageDeltaE_Squared = 0;
+
+    for(int i = 0; i < correlation.size(); ++i)
+    {
+        double deltaE = -1/static_cast<double>(i) * log(correlation[i]);
+        cout << deltaE << endl;
+        averageDeltaE += deltaE /correlation.size();
+        averageDeltaE_Squared += deltaE*deltaE/correlation.size();
+
+    }    
+
+    double sdDeltaE = averageDeltaE_Squared - averageDeltaE*averageDeltaE;
+
+
+
 
     
 
@@ -381,6 +419,7 @@ int main(int argc, const char * argv[])
     cout << "<X>                       : " << averageX               << " +/- " << sdX           << endl;
     cout << "<X^2>                     : " << averageXSquared        << " +/- " << sdXSquared    << endl;
     cout << "E_0                       : " << groundStateEnergy      << " +/- " << sdGroundStateEnergy << endl;
+    cout << "E_1 - E_0                 : " << averageDeltaE                 << " +/- " << sdDeltaE      << endl;
 
     /**********************************************************************************************************************
     ************************************************* File Output *********************************************************
