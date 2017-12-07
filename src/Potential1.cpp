@@ -1,6 +1,6 @@
 #include "Potential1.hpp"
 
-Potential1::Potential1(double muSquared, double lambda):m_muSquared(muSquared),OscPotential(lambda){}
+Potential1::Potential1(double muSquared, double lambda):m_muSquared(muSquared),m_lambda(lambda){}
 
 double  Potential1::operator()(double x) const 
 {

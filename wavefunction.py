@@ -3,12 +3,11 @@
 # import matplotlib for plotting input
 import matplotlib.pyplot as plt
 import numpy as np
-import statistics as stat
 # import sys so that we may access command line arguments
 import sys 
 
-def trueWavefunction(x):
-    return 0.59 * np.exp(-1.1*x*x)
+import statistics as stat
+
 
 # define main method
 if __name__ == "__main__":
@@ -61,20 +60,14 @@ if __name__ == "__main__":
     wavefunctionError    = [np.sqrt(i/samples) for i in wavefunctionVariance]
 
     
-    
-    trueData = np.arange(minimum,maximum,0.01)
-    
     # plot histogram with various customizations
     plt.plot(position,meanWavefunction,'x',color='red', markersize='4',label="Measured")
     plt.errorbar(position,meanWavefunction,yerr=wavefunctionError,linestyle='none')
-    plt.plot(trueData,trueWavefunction(trueData),label="Theory",color='blue',linewidth='0.3')
-    plt.title("Harmonic Oscillator Wavefunction")
+    plt.title("Oscillator Wavefunction")
     plt.xlabel(r'$x$')
     plt.ylabel(r'$|\psi(x)|^2$')
     plt.legend()
    
-    # save the plot with file name the same as its title
-    #plt.savefig(plotTitle)
     
     # show the plot
     plt.show()

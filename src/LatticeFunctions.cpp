@@ -5,7 +5,7 @@
 
 //This is the total action for the lattice, not the normal PE energy
 //this is inline with the definition of S being the potential in HMC 
-double latticePotentialEnergy(const std::vector<double> &configuration, double latticeSpacing, double mass, const OscPotential &potential)
+double latticePotentialEnergy(const std::vector<double> &configuration, double latticeSpacing, double mass, const Ipotential *potential)
 {
     //create sum value which we add each term to
     double totalPotentialEnergy = 0.0;
@@ -14,10 +14,10 @@ double latticePotentialEnergy(const std::vector<double> &configuration, double l
 
     for(int i = 0; i < latticeSize-1; ++i)
     {
-        totalPotentialEnergy += (0.5 * mass * (configuration[i+1]-configuration[i]) * (configuration[i+1]-configuration[i])) / latticeSpacing + latticeSpacing * potential(configuration[i]);
+        totalPotentialEnergy += (0.5 * mass * (configuration[i+1]-configuration[i]) * (configuration[i+1]-configuration[i])) / latticeSpacing + latticeSpacing * (*potential)(configuration[i]);
     }
 
-    totalPotentialEnergy += (0.5 * mass * (configuration[0]-configuration[latticeSize-1]) * (configuration[0]-configuration[latticeSize-1])) / latticeSpacing + latticeSpacing * potential(configuration[latticeSize-1]);
+    totalPotentialEnergy += (0.5 * mass * (configuration[0]-configuration[latticeSize-1]) * (configuration[0]-configuration[latticeSize-1])) / latticeSpacing + latticeSpacing * (*potential)(configuration[latticeSize-1]);
 
     
     return totalPotentialEnergy;
@@ -38,28 +38,28 @@ double kineticEnergy(const std::vector<double> &momentum, double mass)
 }
 
 //calculates hmc hamiltonian  according to H(q,p) = p^2/2m + S(q)
-double oscillatorHamiltonian(const std::vector<double>& p, const std::vector<double>& q, double latticeSpacing, double mass, const OscPotential &potential)
+double oscillatorHamiltonian(const std::vector<double>& p, const std::vector<double>& q, double latticeSpacing, double mass, const Ipotential *potential)
 {
     return kineticEnergy(p,mass) + latticePotentialEnergy(q, latticeSpacing, mass, potential);
 }
 
 
-void leapFrog(std::vector<double> &configuration, std::vector<double> &momentum, double latticeSpacing, int lfStepCount, double lfStepSize, const OscPotential &potential, double mass)
+void leapFrog(std::vector<double> &configuration, std::vector<double> &momentum, double latticeSpacing, int lfStepCount, double lfStepSize, const Ipotential *potential, double mass)
 {
     int latticeSize = configuration.size();
 
     // Intial half step in momentum.
     // First lattice site has special neighbour conditions. 
-    momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize - 1] ) + latticeSpacing * potential[configuration[0]]) * (lfStepSize/2.0);
+    momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize - 1] ) + latticeSpacing * (*potential)[configuration[0]]) * (lfStepSize/2.0);
 
     // All remaining sites except last have normal neighbours.
     for(int i = 1; i <= latticeSize - 2; ++i)
     {
-        momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * potential[configuration[i]]) * (lfStepSize/2.0);
+        momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * (*potential)[configuration[i]]) * (lfStepSize/2.0);
     }
 
     // Final site has special neighbour conditions.
-    momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * potential[configuration[latticeSize-1]]) * (lfStepSize/2.0);
+    momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * (*potential)[configuration[latticeSize-1]]) * (lfStepSize/2.0);
 
 
     // Full step in position. 
@@ -72,16 +72,16 @@ void leapFrog(std::vector<double> &configuration, std::vector<double> &momentum,
     for(int n = 1; n < lfStepCount; ++n)
     {
         // First lattice site has special neighbour conditions. 
-        momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize-1] ) + latticeSpacing * potential[configuration[0]]) * (lfStepSize);
+        momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize-1] ) + latticeSpacing * (*potential)[configuration[0]]) * (lfStepSize);
 
         // All remaining sites except last have normal neighbours.
         for(int i = 1; i <= latticeSize - 2; ++i)
         {
-            momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * potential[configuration[i]]) * (lfStepSize);
+            momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * (*potential)[configuration[i]]) * (lfStepSize);
         }
 
         // Final site has special neighbour conditions.
-        momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * potential[configuration[latticeSize-1]]) * (lfStepSize);
+        momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * (*potential)[configuration[latticeSize-1]]) * (lfStepSize);
 
 
         // Full step in position. 
@@ -95,16 +95,16 @@ void leapFrog(std::vector<double> &configuration, std::vector<double> &momentum,
     // Final half step in momentum.
 
     // First lattice site has special neighbour conditions. 
-    momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize-1] ) + latticeSpacing * potential[configuration[0]]) * (lfStepSize/2.0);
+    momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize-1] ) + latticeSpacing * (*potential)[configuration[0]]) * (lfStepSize/2.0);
 
     // All remaining sites except last have normal neighbours.
     for(int i = 1; i <= latticeSize - 2; ++i)
     {
-        momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * potential[configuration[i]]) * (lfStepSize/2.0);
+        momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * (*potential)[configuration[i]]) * (lfStepSize/2.0);
     }
 
     // Final site has special neighbour conditions.
-    momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * potential[configuration[latticeSize-1]]) * (lfStepSize/2.0);
+    momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * (*potential)[configuration[latticeSize-1]]) * (lfStepSize/2.0);
 
 }
 
@@ -115,8 +115,6 @@ double correlationFunction(const std::vector<double> &configuration, int t)
     double normalisation = 0;
     for(int i = 0; i < configuration.size(); ++i)
     {
-        /*std::vector<double>::iterator ith = copyConfig.begin()+i;
-        std::rotate(copyConfig.begin(),ith, copyConfig.end());*/
         sum += configuration[i]*configuration[(t+i)%(configuration.size())];
         normalisation += configuration[i]*configuration[i];
     }

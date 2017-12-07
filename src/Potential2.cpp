@@ -1,7 +1,6 @@
-
 #include "Potential2.hpp"
 
-Potential2::Potential2(double lambda, double fSquared):m_fSquared(fSquared),OscPotential(lambda){}
+Potential2::Potential2(double lambda, double fSquared):m_fSquared(fSquared),m_lambda(lambda){}
 
 double  Potential2::operator()(double x) const 
 {

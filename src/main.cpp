@@ -10,11 +10,12 @@
 #include <vector> //for holding any 1-D configurations
 #include <array>
 #include <algorithm>
+#include <iomanip>
 #include <sstream>
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 
-#include "OscPotential.hpp"
+#include "Ipotential.hpp"
 #include "Potential1.hpp"
 #include "Potential2.hpp"
 #include "LatticeFunctions.hpp"
@@ -31,6 +32,8 @@ int main(int argc, const char * argv[])
     // Begin timing.
     auto start = chrono::system_clock::now();
 
+    // Tell user that simulation is starting.
+    cout << "Setting up Simulation...\n";
     
     /*************************************************************************************************************************
     ****************************************************** Input Parameters **************************************************
@@ -43,8 +46,8 @@ int main(int argc, const char * argv[])
     // Oscillator Parameters.
     double mass;
     double muSquared;
-    double lambda;
-    double fSquared;
+    double lambda = 0;
+    double fSquared = 0;
 
     // HMC Parameters.
     int    lfStepCount;
@@ -55,17 +58,21 @@ int main(int argc, const char * argv[])
     int burnPeriod;
     int mInterval;
 
+    // Choice of potential.
+    bool useAltPotential = false;
+
     // Set up optional command line argument.
     po::options_description desc("Options for hmc oscillator program");
 
+    // Add all optional command line arguments.
     desc.add_options()
         
         ("lattice-size,L", po::value<int>(&latticeSize)->default_value(1000), "The number of lattice sites")
         ("lattice-spacing,a", po::value<double>(&latticeSpacing)->default_value(1.0), "The spacing between lattice sites")
         ("mass,m", po::value<double>(&mass)->default_value(1.0), "The mass of the oscillator")
         ("mu-squared,u", po::value<double>(&muSquared)->default_value(1), "The mu^2 of the oscillator")
-        ("lambda,l", po::value<double>(&lambda)->default_value(0.0), "The lambda value of the oscillator")
-        ("f-squared,f", po::value<double>(&fSquared)->default_value(0.0), "The f^2 value of the oscillator")
+        ("lambda,l", po::value<double>(&lambda), "The lambda value of the oscillator")
+        ("f-squared,f", po::value<double>(&fSquared), "The f^2 value of the oscillator")
         ("lf-step-count,N", po::value<int>(&lfStepCount)->default_value(5), "The number of leapfrog steps")
         ("lf-step-size,d", po::value<double>(&lfStepSize)->default_value(0.2), "The leapfrog step size")
         ("configuration-count,c", po::value<int>(&configCount)->default_value(100000), "The number of configurations")
@@ -74,6 +81,7 @@ int main(int argc, const char * argv[])
         ("potential,p", "use alternative potential")
         ("help,h", "produce help message");
 
+    // Make arguments available to program
     po::variables_map vm;
     po::store(po::parse_command_line(argc,argv,desc), vm);
     po::notify(vm);
@@ -85,37 +93,83 @@ int main(int argc, const char * argv[])
         return 1;
     }
 
+    // If the user specifies alternate potential need to let the program know.
+    if(vm.count("f-squared")) 
+    {
+        useAltPotential = true;
+    }
+
+    // Tell user their input values to check they are correct.
+    int outputColumnWidth = 30;
+    cout << "Input Parameters..." << '\n';
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "Lattice Size: " << right << latticeSize << '\n';
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "Lattice Spacing: " << right << latticeSpacing << '\n';
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "LeapFrog Step Size: " << right << lfStepSize << '\n';
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "#LeapFrog Steps " << right << lfStepCount<< '\n';
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "#Configurations: " << right << configCount << '\n';
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "Burn Period: " << right << burnPeriod << '\n';
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "Measurement Interval: " << right << mInterval << '\n';
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "Mass: " << right << mass << '\n';
+    // Depending on which potential was used report correct parameters.
+    if(0 != fSquared)
+    {
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "f^2: " << right << fSquared << '\n';
+    }
+    else
+    {
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "mu^2: " << right << muSquared << '\n';
+    }
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "Lambda: " << right << lambda << '\n' << '\n';
+
     /*************************************************************************************************************************
-    ****************************************************** Create Output File ************************************************
+    ****************************************************** Create Output Directory ************************************************
     **************************************************************************************************************************/
+
+    // Create string from the time the program started.
     time_t startTime = chrono::system_clock::to_time_t(start);
     string outputName = ctime(&startTime);
+
+    // Strip out and replace difficult characters.
     std::transform(outputName.begin(), outputName.end(), outputName.begin(), [](char ch) {return ch == ' ' ? '_' : ch;});
     std::transform(outputName.begin(), outputName.end(), outputName.begin(), [](char ch) {return ch == ':' ? '-' : ch;});
     outputName.erase(std::remove(outputName.begin(), outputName.end(), '\n'), outputName.end());
+
+    // Create directory path from the string.
     boost::filesystem::path outPath = outputName;
     
-
-    for(int i = 2; boost::filesystem::exists(outPath) && i < 10; ++i)
+    // If user calls program more than once a second so that directories will be overwritten append an index.
+    for(int i = 2; boost::filesystem::exists(outPath) && i < 100; ++i)
     {
         stringstream ss;
         ss << outPath << "(" << i << ")";
         outPath = ss.str();
     }
+
+    // Create the directory for output.
     boost::filesystem::create_directory(outPath);
     
     
     // Create potentials for each type.
-    OscPotential oscPotential(lambda);
     Potential1   potential1(muSquared, lambda);
     Potential2   potential2(lambda, fSquared);
-    OscPotential& potential = potential1;
+    Ipotential  *potential = nullptr;
 
     // If user specified alternative potential use that.
-    if(vm.count("potential"))
+    if(vm.count("f-squared"))
     {
-        potential = potential2;
+        potential = &potential2;
     }
+    else
+    {
+        potential = &potential1;
+    }
+
+   
+
+
+    //Create output file for position.
+    ofstream positionOutput(outputName+"/position.dat");
+    
     
 
 
@@ -124,6 +178,8 @@ int main(int argc, const char * argv[])
     **************************************************************************************************************************/
     int    mCount                   = configCount/mInterval;         
     int    acceptance               = 0;
+
+    double tunnelRate               = 0;
 
     double averageX                 = 0.0;
     double averageX_Squared         = 0.0;
@@ -143,14 +199,17 @@ int main(int argc, const char * argv[])
     double averageExpDeltaH         = 0.0;
     double averageExpDeltaH_Squared = 0.0;
 
-    int correlationRange = 20;
-    int coOutputInterval = 1000;
+    double averageGSEnergy          = 0.0;
+    double averageGSEnergy_Squared  = 0.0;
+
+    int    correlationRange         = 20;
+    
     
     vector<double> correlation(correlationRange,0);
     vector<double> correlationSquared(correlationRange,0);
 
-    int numBins = 40;
-    Histogram positionHistogram(-2.0, 2.0, numBins);
+    int numBins = 100;
+    Histogram positionHistogram(-5.0, 5.0, numBins);
     
 
 
@@ -170,8 +229,10 @@ int main(int argc, const char * argv[])
     *************************************************** Prepare Lattice ******************************************************
     **************************************************************************************************************************/
 
-   
+    // Create all vectors before iterations begin so they are not created on each iteration.
     vector<double> configuration;
+    vector<double> originalConfiguration;
+    vector<double> originalMomentum;
     vector<double> momentum;
     for (int i = 0; i < latticeSize; ++i)
     {
@@ -179,47 +240,72 @@ int main(int argc, const char * argv[])
         momentum.push_back(momentumDistribution(generator));
     }
 
+
+
     /*************************************************************************************************************************
     *************************************************** Do HMC **************************************************************
     **************************************************************************************************************************/
 
     for(int config = 0; config < configCount+burnPeriod; ++config)
     {
-        if(config>burnPeriod && 0==config%1000)
-        {
-            cout << '\r' << config << " configurations completed..." << flush;
-        }
 
+        // Create and print a progress bar so the user can see how much progress the program has made. 
+        double percentageComplete = 100*static_cast<double>(config)/(configCount+burnPeriod);
+        int    basePercentage     = static_cast<int>(percentageComplete);
+        int    decimalPercentage  = static_cast<int>(100 * (percentageComplete-basePercentage));
+        int    numBars            = static_cast<int>(percentageComplete/2);
+        string bars(numBars, '=');
+        ostringstream barStringStream;
+        barStringStream << setw(50) << setfill(' ') << left << bars;
+
+        ostringstream percentageBaseStream;
+        percentageBaseStream << setw(2) << setfill('0') << basePercentage; 
+
+        ostringstream percentageDecimalStream;
+        percentageDecimalStream << setw(2) << setfill('0') << decimalPercentage;
+
+        string percentage = percentageBaseStream.str() + '.' + percentageDecimalStream.str();
+        cout << '\r' << "Progress: " <<  percentage <<  "% " << '[' << barStringStream.str() << ']' << flush;
+
+
+        // Randomize the momenta on the sites.
         for(auto& p : momentum)
         {
             p = momentumDistribution(generator);
         }
 
-        vector<double> originalConfiguration = configuration;
-        vector<double> originalMomentum      = momentum;
-    
+        // Save the original momenta and configurations since the leapFrog() function actually updates these vectors.
+        originalConfiguration = configuration;
+        originalMomentum      = momentum;
+        
+        // Do the leadFrog update.
         leapFrog(configuration, momentum, latticeSpacing, lfStepCount, lfStepSize, potential, mass);
-    
+        
+        // Calculate the Hamiltonian for the whole configuration before and after the update.
         double hamiltonianBefore = oscillatorHamiltonian(originalMomentum, originalConfiguration, latticeSpacing, mass, potential);
         double hamiltonianAfter = oscillatorHamiltonian(momentum, configuration, latticeSpacing, mass, potential);
 
-    
+        // Calculate the change in the Hamiltonian over the update.
         double deltaH = hamiltonianAfter - hamiltonianBefore;
-    
+        
+        // Do the metropolis update - if the update fails we need to restore the original configuration.
         if(exp(-deltaH) < acceptanceDistribution(generator))
         {
             configuration = originalConfiguration;
             momentum      = originalMomentum;
         }
 
+        // Otherwise record that the state has been accepted, if we have got past the burn period.
         else if(config >= burnPeriod)
         {
             ++acceptance;
         }
 
-    
+        
+        // Measurements are made at the interval specified by the user once we have exceeded the burn period. 
         if(0 == config%mInterval && config >= burnPeriod)
         {   
+            // Quantities of interest.
             double meanX         = 0.0;
             double meanXSquared  = 0.0;
             double meanXFourth   = 0.0;
@@ -228,6 +314,9 @@ int main(int argc, const char * argv[])
             double meanPE        = 0.0;
 
             double meanExpdeltaH = 0.0;
+
+            double meanGSEnergy  = 0.0;
+
 
 
             for(const auto& x : configuration)
@@ -245,6 +334,9 @@ int main(int argc, const char * argv[])
 
             averageX                 += meanX;
             averageX_Squared         += meanX * meanX;
+
+            // Quicker to output position values to file on each iteration rather than storing them and outputting them later.s
+            positionOutput << meanX << '\n';
 
             averageXSquared          += meanXSquared;
             averageXSquared_Squared  += meanXSquared * meanXSquared;
@@ -264,36 +356,66 @@ int main(int argc, const char * argv[])
             averageExpDeltaH         += meanExpdeltaH;
             averageExpDeltaH_Squared += meanExpdeltaH*meanExpdeltaH;
 
+
+            if(useAltPotential)
+            {
+                meanGSEnergy = -4.0 * fSquared * lambda * meanXSquared + lambda * meanXFourth;
+            }
+            else
+            {
+                meanGSEnergy = muSquared * meanXSquared + lambda * meanXFourth;
+            }
+
+            averageGSEnergy         += meanGSEnergy;
+            averageGSEnergy_Squared += meanGSEnergy*meanGSEnergy;
+
+
+            // Store first n values of the correlation function on the lattice.
             for(int i = 0; i < correlation.size(); ++i)
             {   
                 double correlationValue = correlationFunction(configuration,i);
                 correlation[i] += correlationValue;
                 correlationSquared[i] += correlationValue*correlationValue;
+
             } 
+
+            // If their is a sign switch between two adjacent lattice sites record this as a tunnel.
+            for(int i = 0; i < correlation.size(); ++i)
+            {
+                if(configuration[i]/configuration[(i+1)%configuration.size()] < 0) tunnelRate+= 1.0/configuration.size();
+            }
             
         }
-        /*
-        if(config>=burnPeriod && 0==config%coOutputInterval)
-        {
-            for(int i = 0; i < correlation.size(); ++i)
-            {   
-                double correlationValue = correlationFunction(configuration,i)/100;
-                correlation[i] += correlationValue;
-                correlationSquared[i] += correlationValue*correlationValue;
-            } 
-        }
-        */
         
-        
-
 
     }
 
-    cout << "\n Done!..." << endl;
+    // Print final part of progress bar.
+    int    config = burnPeriod+configCount;
+    double percentageComplete = 100*static_cast<double>(config)/(configCount+burnPeriod);
+    int    basePercentage     = static_cast<int>(percentageComplete);
+    int    decimalPercentage  = static_cast<int>(100 * (percentageComplete-basePercentage));
+    int    numBars            = static_cast<int>(percentageComplete/2);
+    string bars(numBars, '=');
+    ostringstream barStringStream;
+    barStringStream << setw(50) << setfill(' ') << left << bars;
+
+    ostringstream percentageBaseStream;
+    percentageBaseStream << setw(2) << setfill('0') << basePercentage; 
+
+    ostringstream percentageDecimalStream;
+    percentageDecimalStream << setw(2) << setfill('0') << decimalPercentage;
+
+    string percentage = percentageBaseStream.str() + '.' + percentageDecimalStream.str();
+    cout << '\r' << "Progress: " <<  percentage <<  "% " << '[' << barStringStream.str() << ']' << flush;
+
+    cout << "\nDone!...\n" << endl;
 
     /*************************************************************************************************************************
     ***************************************** Calculate Observables **********************************************************
     **************************************************************************************************************************/
+
+    // Average over all measurements.
     averageX                 /= mCount;
     averageX_Squared         /= mCount;
     averageXSquared          /= mCount;
@@ -306,15 +428,17 @@ int main(int argc, const char * argv[])
     averageKE_Squared        /= mCount;
     averageExpDeltaH         /= mCount;
     averageExpDeltaH_Squared /= mCount;
+    averageGSEnergy          /= mCount;
+    averageGSEnergy_Squared  /= mCount;
+    tunnelRate               /= mCount;
 
     for(auto &x : correlation) x /= mCount;
     
     for(auto &x : correlationSquared) x /= mCount;
-     
-    
 
     double acceptanceRate = static_cast<double>(acceptance)/(configCount);
 
+    // Calculate variance and standard error using the normal formulas.    
     double varianceAcceptance  = acceptanceRate - acceptanceRate * acceptanceRate;
     double sdAcceptance        = sqrt(varianceAcceptance)/sqrt(mCount);
 
@@ -336,6 +460,9 @@ int main(int argc, const char * argv[])
     double varainceExpDeltaH   = averageExpDeltaH_Squared - averageExpDeltaH * averageExpDeltaH;
     double sdExpDeltaH         = sqrt(varainceExpDeltaH)/sqrt(mCount);
 
+    double varianceGSEnergy    = averageGSEnergy_Squared - averageGSEnergy * averageGSEnergy;
+    double sdGSEnergy          = sqrt(varianceGSEnergy)/sqrt(mCount);
+
     vector<double> sdCorrelation(correlation.size(),0);
     for(int i = 0; i < sdCorrelation.size();++i)
     {
@@ -343,10 +470,10 @@ int main(int argc, const char * argv[])
         sdCorrelation[i] = sqrt(varianceCorrelation)/sqrt(mCount);
     }
 
-    double groundStateEnergy;
-    double sdGroundStateEnergy;
-
-    if(vm.count("potential"))
+    //double groundStateEnergy;
+    //double sdGroundStateEnergy;
+    /*
+    if(vm.count("f-squared"))
     {
         groundStateEnergy   = -2.0*lambda*fSquared*averageXSquared + 3.0 * lambda * averageXFourth;
         sdGroundStateEnergy = sqrt(4.0*lambda*lambda*fSquared*fSquared*averageXSquared + 9.0*lambda*lambda*varianceXFourth)/sqrt(mCount);  
@@ -357,15 +484,14 @@ int main(int argc, const char * argv[])
         groundStateEnergy   = muSquared*averageXSquared + 3.0 * lambda * averageXFourth;
         sdGroundStateEnergy = sqrt(muSquared*muSquared*varianceXSquared + 9.0*lambda*lambda*varianceXFourth)/sqrt(mCount);
     }  
-
+    */
     double averageDeltaE   = 0;
     double averageDeltaE_Squared = 0;
 
-    for(int i = 0; i < correlation.size(); ++i)
+    for(int i = 1; i < correlation.size(); ++i)
     {
         double deltaE = -1/static_cast<double>(i) * log(correlation[i]);
-        cout << deltaE << endl;
-        averageDeltaE += deltaE /correlation.size();
+        averageDeltaE += deltaE / (correlation.size()-1);
         averageDeltaE_Squared += deltaE*deltaE/correlation.size();
 
     }    
@@ -380,46 +506,20 @@ int main(int argc, const char * argv[])
     /**********************************************************************************************************************
     ************************** OUTPUT TO TERMINAL *************************************************************************
     **********************************************************************************************************************/
-    cout << endl;
+    cout << "Output...\n";
 
-    cout << "Input__"               << endl;
-
-    cout << "Lattice Size              : " << latticeSize    << endl;
-    cout << "Lattice Spacing           : " << latticeSpacing << endl;
-    cout << "LeapFrog Stepsize         : " << lfStepSize     << endl;
-    cout << "#LeapFrog steps           : " << lfStepCount    << endl;
-    cout << "#Configurations           : " << configCount    << endl;
-    cout << "Burn period               : " << burnPeriod     << endl;
-    cout << "Measurement interval      : " << mInterval      << endl;
-
-    cout << endl;
-
-    cout << "mass                      : " << mass << endl;
-    if(vm.count("potential"))
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "Acceptance Rate: " << right << acceptanceRate << " +/- " << sdAcceptance  << endl;
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "<S>:" << right << averagePE << " +/- " << sdPE << endl;
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "<T>:" << right << averageKE << " +/- " << sdKE << endl;
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "<exp(-deltaH)>:" << right << averageExpDeltaH << " +/- " << sdExpDeltaH << endl;
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "<X>: " << right << averageX << " +/- " << sdX << endl;
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "<X^2>:" << right << averageXSquared << " +/- " << sdXSquared << endl;
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "E_0:" << right  << averageGSEnergy << " +/- " << sdGSEnergy << endl;
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "E_1 - E_0:" << right << averageDeltaE << " +/- " << sdDeltaE << endl;
+    if(vm.count("lambda"))
     {
-    cout << "f^2                       : " << fSquared << endl;             
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "Tunnel Rate:" << right << tunnelRate << endl;
     }
-    else
-    {
-    cout << "mu^2                      : " << muSquared << endl;
-    }
-    
-    cout << "lambda                    : " << lambda << endl;
-
-    cout << endl;
-
-    cout << endl;
-
-    cout << "Output__"              << endl;
-
-    cout << "Acceptance Rate           : " << acceptanceRate         << " +/- " << sdAcceptance  << endl;
-    cout << "<S>                       : " << averagePE              << " +/- " << sdPE          << endl;
-    cout << "<T>                       : " << averageKE              << " +/- " << sdKE          << endl;
-    cout << "<exp(-deltaH)>            : " << averageExpDeltaH       << " +/- " << sdExpDeltaH   << endl;
-    cout << "<X>                       : " << averageX               << " +/- " << sdX           << endl;
-    cout << "<X^2>                     : " << averageXSquared        << " +/- " << sdXSquared    << endl;
-    cout << "E_0                       : " << groundStateEnergy      << " +/- " << sdGroundStateEnergy << endl;
-    cout << "E_1 - E_0                 : " << averageDeltaE                 << " +/- " << sdDeltaE      << endl;
 
     /**********************************************************************************************************************
     ************************************************* File Output *********************************************************
@@ -435,10 +535,16 @@ int main(int argc, const char * argv[])
         correlationOutput << i << " " << correlation[i] << ' ' << sdCorrelation[i] << '\n';
     }
 
+    ofstream finalConfigOutput(outputName+"/finalConfiguration.dat");
+    for(int i = 0; i <configuration.size();++i)
+    {
+        finalConfigOutput << configuration[i] <<'\n';
+    }
+
     /**********************************************************************************************************************
     ************************************************* End Program *********************************************************
-    ***********************************************************************************************************************/
-
+    ***********************************************************************************************************************/    
+   cout << "Simulation Complete! Results have been outputed to the directory " << outputName << '\n'; 
    auto end = chrono::system_clock::now();
    auto elapsed = chrono::duration_cast<chrono::seconds>(end - start);
    cout << "Time take to execute (s):   " << elapsed.count() << endl << endl; 
