@@ -172,14 +172,8 @@ int main(int argc, const char * argv[])
         potential = &potential1;
     }
 
-   
-
-
     //Create output file for position.
     ofstream positionOutput(outputName+"/position.dat");
-    
-    
-
 
     /*************************************************************************************************************************
     *************************************************** Set up Measurements **************************************************
@@ -269,26 +263,6 @@ int main(int argc, const char * argv[])
     {
         cout << progressBar;
         progressBar.increment();
-
-        /*
-        // Create and print a progress bar so the user can see how much progress the program has made. 
-        double percentageComplete = 100*static_cast<double>(config)/(configCount+burnPeriod);
-        int    basePercentage     = static_cast<int>(percentageComplete);
-        int    decimalPercentage  = static_cast<int>(100 * (percentageComplete-basePercentage));
-        int    numBars            = static_cast<int>(percentageComplete/2);
-        string bars(numBars, '=');
-        ostringstream barStringStream;
-        barStringStream << setw(50) << setfill(' ') << left << bars;
-
-        ostringstream percentageBaseStream;
-        percentageBaseStream << setw(2) << setfill('0') << basePercentage; 
-
-        ostringstream percentageDecimalStream;
-        percentageDecimalStream << setw(2) << setfill('0') << decimalPercentage;
-
-        string percentage = percentageBaseStream.str() + '.' + percentageDecimalStream.str();
-        cout << '\r' << "Progress: " <<  percentage <<  "% " << '[' << barStringStream.str() << ']' << flush;
-        */
 
         // Randomize the momenta on the sites.
         for(auto& p : momentum)
@@ -433,32 +407,12 @@ int main(int argc, const char * argv[])
     }
     progressBar.increment();
     cout << progressBar;
-    /*
-    // Print final part of progress bar.
-    int    config = burnPeriod+configCount;
-    double percentageComplete = 100*static_cast<double>(config)/(configCount+burnPeriod);
-    int    basePercentage     = static_cast<int>(percentageComplete);
-    int    decimalPercentage  = static_cast<int>(100 * (percentageComplete-basePercentage));
-    int    numBars            = static_cast<int>(percentageComplete/2);
-    string bars(numBars, '=');
-    ostringstream barStringStream;
-    barStringStream << setw(50) << setfill(' ') << left << bars;
-
-    ostringstream percentageBaseStream;
-    percentageBaseStream << setw(2) << setfill('0') << basePercentage; 
-
-    ostringstream percentageDecimalStream;
-    percentageDecimalStream << setw(2) << setfill('0') << decimalPercentage;
-
-    string percentage = percentageBaseStream.str() + '.' + percentageDecimalStream.str();
-    cout << '\r' << "Progress: " <<  percentage <<  "% " << '[' << barStringStream.str() << ']' << flush;
-
     cout << "\nDone!...\n" << endl;
-    */
     /*************************************************************************************************************************
     ***************************************** Calculate Observables **********************************************************
     **************************************************************************************************************************/
-    cout << "\nDone!...\n" << endl;
+
+    
     // Average over all measurements.
     averageX                 /= mCount;
     averageX_Squared         /= mCount;
@@ -570,8 +524,6 @@ int main(int argc, const char * argv[])
         wavefunctionOutput << wavefunction[i] << ' ' << wavefunctionError[i] << '\n';
     }
     
-    //positionHistogram2.normalise();
-    //wavefunctionOutput << positionHistogram2;
     
     ofstream correlationOutput(outputName+"/correlation.dat");
     for(int i = 0; i < correlation.size(); ++i)
