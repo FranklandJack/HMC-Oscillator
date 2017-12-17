@@ -20,7 +20,7 @@
 #include "Potential2.hpp"
 #include "LatticeFunctions.hpp"
 #include "Histogram.hpp"
-
+#include "ProgressBar.hpp"
 // Lots of use of the standard library so use namespace here.
 using namespace std;
 
@@ -61,6 +61,11 @@ int main(int argc, const char * argv[])
     // Choice of potential.
     bool useAltPotential = false;
 
+    // Histogram parameters.
+    int    numBins;
+    double histMaxValue;
+    double histMinValue;
+
     // Set up optional command line argument.
     po::options_description desc("Options for hmc oscillator program");
 
@@ -78,6 +83,9 @@ int main(int argc, const char * argv[])
         ("configuration-count,c", po::value<int>(&configCount)->default_value(100000), "The number of configurations")
         ("burn-period,b", po::value<int>(&burnPeriod)->default_value(1000), "The burn period")
         ("measurement-interval,i", po::value<int>(&mInterval)->default_value(4), "The number of steps between measurements")
+        ("number-bins,B", po::value<int>(&numBins)->default_value(100), "The number of bins in the position histogram")
+        ("histogram-max-value,R", po::value<double>(&histMaxValue)->default_value(4.0), "Maximum value in histogram range")
+        ("histogram-min-value,r", po::value<double>(&histMinValue)->default_value(-4.0), "Minimum value in histogram range")
         ("potential,p", "use alternative potential")
         ("help,h", "produce help message");
 
@@ -111,7 +119,7 @@ int main(int argc, const char * argv[])
     cout << setw(outputColumnWidth) << setfill(' ') << left << "Measurement Interval: " << right << mInterval << '\n';
     cout << setw(outputColumnWidth) << setfill(' ') << left << "Mass: " << right << mass << '\n';
     // Depending on which potential was used report correct parameters.
-    if(0 != fSquared)
+    if(useAltPotential)
     {
     cout << setw(outputColumnWidth) << setfill(' ') << left << "f^2: " << right << fSquared << '\n';
     }
@@ -196,20 +204,28 @@ int main(int argc, const char * argv[])
     double averageKE                = 0.0;
     double averageKE_Squared        = 0.0;
 
+
+    double averageDeltaH            = 0.0;
+    double averageDeltaH_Squared    = 0.0;
+
     double averageExpDeltaH         = 0.0;
     double averageExpDeltaH_Squared = 0.0;
 
     double averageGSEnergy          = 0.0;
     double averageGSEnergy_Squared  = 0.0;
 
-    int    correlationRange         = 20;
+    int    correlationRange         = 10;
     
     
     vector<double> correlation(correlationRange,0);
     vector<double> correlationSquared(correlationRange,0);
 
-    int numBins = 100;
-    Histogram positionHistogram(-5.0, 5.0, numBins);
+    //Histogram positionHistogram2(histMinValue, histMaxValue, numBins);
+
+    // Set up arrays to hold the wavefunction calculated on each measured configuration.
+    vector<double> wavefunction(numBins,0.0);
+    vector<double> wavefunctionSquared(numBins,0.0);
+    vector<double> wavefunctionError(numBins,0.0);
     
 
 
@@ -246,9 +262,15 @@ int main(int argc, const char * argv[])
     *************************************************** Do HMC **************************************************************
     **************************************************************************************************************************/
 
+    // Progress bar to inform use how far through simulation they are.
+    
+    ProgressBar progressBar(configCount+burnPeriod,0.5, 2, 0.0);
     for(int config = 0; config < configCount+burnPeriod; ++config)
     {
+        cout << progressBar;
+        progressBar.increment();
 
+        /*
         // Create and print a progress bar so the user can see how much progress the program has made. 
         double percentageComplete = 100*static_cast<double>(config)/(configCount+burnPeriod);
         int    basePercentage     = static_cast<int>(percentageComplete);
@@ -266,7 +288,7 @@ int main(int argc, const char * argv[])
 
         string percentage = percentageBaseStream.str() + '.' + percentageDecimalStream.str();
         cout << '\r' << "Progress: " <<  percentage <<  "% " << '[' << barStringStream.str() << ']' << flush;
-
+        */
 
         // Randomize the momenta on the sites.
         for(auto& p : momentum)
@@ -278,7 +300,7 @@ int main(int argc, const char * argv[])
         originalConfiguration = configuration;
         originalMomentum      = momentum;
         
-        // Do the leadFrog update.
+        // Do the leap frog update.
         leapFrog(configuration, momentum, latticeSpacing, lfStepCount, lfStepSize, potential, mass);
         
         // Calculate the Hamiltonian for the whole configuration before and after the update.
@@ -313,10 +335,13 @@ int main(int argc, const char * argv[])
             double meanKE        = 0.0;
             double meanPE        = 0.0;
 
+            double meanDeltaH    = 0.0;
             double meanExpdeltaH = 0.0;
 
             double meanGSEnergy  = 0.0;
 
+            // Create histogram to record the wavefunction for this configuration.
+            Histogram positionHistogram(histMinValue, histMaxValue, numBins);
 
 
             for(const auto& x : configuration)
@@ -325,7 +350,18 @@ int main(int argc, const char * argv[])
                 meanXSquared += x*x;
                 meanXFourth  += x*x*x*x;
                 positionHistogram(x);
+                //positionHistogram2(x);
 
+            }
+
+            // Normalise the wavefunction and store it in the vector of wavefunctions.
+            positionHistogram.normalise();
+
+            for(int i = 0; i < wavefunction.size(); ++i)
+            {
+                double probabilty = positionHistogram.count(i);
+                wavefunction[i] += probabilty/mCount;
+                wavefunctionSquared[i] += probabilty * probabilty/mCount;
             }
 
             meanX        /= latticeSize;
@@ -352,6 +388,10 @@ int main(int argc, const char * argv[])
             averageKE                += meanKE;
             averageKE_Squared        += meanKE * meanKE;
 
+            meanDeltaH                = deltaH;
+            averageDeltaH            += meanDeltaH;
+            averageDeltaH_Squared    += deltaH*deltaH;
+
             meanExpdeltaH             = exp(-deltaH);
             averageExpDeltaH         += meanExpdeltaH;
             averageExpDeltaH_Squared += meanExpdeltaH*meanExpdeltaH;
@@ -359,11 +399,11 @@ int main(int argc, const char * argv[])
 
             if(useAltPotential)
             {
-                meanGSEnergy = -4.0 * fSquared * lambda * meanXSquared + lambda * meanXFourth;
+                meanGSEnergy = -4.0 * fSquared * lambda * meanXSquared + 3.0 * lambda * meanXFourth + lambda * fSquared * fSquared;
             }
             else
             {
-                meanGSEnergy = muSquared * meanXSquared + lambda * meanXFourth;
+                meanGSEnergy = muSquared * meanXSquared + 3.0 * lambda * meanXFourth;
             }
 
             averageGSEnergy         += meanGSEnergy;
@@ -374,8 +414,8 @@ int main(int argc, const char * argv[])
             for(int i = 0; i < correlation.size(); ++i)
             {   
                 double correlationValue = correlationFunction(configuration,i);
-                correlation[i] += correlationValue;
-                correlationSquared[i] += correlationValue*correlationValue;
+                correlation[i]         += correlationValue/mCount;
+                correlationSquared[i]  += correlationValue*correlationValue/mCount;
 
             } 
 
@@ -386,10 +426,14 @@ int main(int argc, const char * argv[])
             }
             
         }
+
+        
         
 
     }
-
+    progressBar.increment();
+    cout << progressBar;
+    /*
     // Print final part of progress bar.
     int    config = burnPeriod+configCount;
     double percentageComplete = 100*static_cast<double>(config)/(configCount+burnPeriod);
@@ -410,11 +454,11 @@ int main(int argc, const char * argv[])
     cout << '\r' << "Progress: " <<  percentage <<  "% " << '[' << barStringStream.str() << ']' << flush;
 
     cout << "\nDone!...\n" << endl;
-
+    */
     /*************************************************************************************************************************
     ***************************************** Calculate Observables **********************************************************
     **************************************************************************************************************************/
-
+    cout << "\nDone!...\n" << endl;
     // Average over all measurements.
     averageX                 /= mCount;
     averageX_Squared         /= mCount;
@@ -426,94 +470,87 @@ int main(int argc, const char * argv[])
     averagePE_Squared        /= mCount;
     averageKE                /= mCount;
     averageKE_Squared        /= mCount;
+    averageDeltaH            /= mCount;
+    averageDeltaH_Squared    /= mCount;
     averageExpDeltaH         /= mCount;
     averageExpDeltaH_Squared /= mCount;
     averageGSEnergy          /= mCount;
     averageGSEnergy_Squared  /= mCount;
     tunnelRate               /= mCount;
 
-    for(auto &x : correlation) x /= mCount;
-    
-    for(auto &x : correlationSquared) x /= mCount;
-
     double acceptanceRate = static_cast<double>(acceptance)/(configCount);
 
     // Calculate variance and standard error using the normal formulas.    
-    double varianceAcceptance  = acceptanceRate - acceptanceRate * acceptanceRate;
+    double varianceAcceptance  = (acceptanceRate - acceptanceRate * acceptanceRate) * mCount/(mCount-1);
     double sdAcceptance        = sqrt(varianceAcceptance)/sqrt(mCount);
 
-    double varianceX           = averageX_Squared - averageX * averageX;
+    double varianceX           = (averageX_Squared - averageX * averageX) * mCount/(mCount-1);;
     double sdX                 = sqrt(varianceX)/sqrt(mCount);
 
-    double varianceXSquared    = averageXSquared_Squared - averageXSquared * averageXSquared;
+    double varianceXSquared    = (averageXSquared_Squared - averageXSquared * averageXSquared) * mCount/(mCount-1);
     double sdXSquared          = sqrt(varianceXSquared)/sqrt(mCount);
 
-    double varianceXFourth     = averageXFourth_Squared - averageXFourth * averageXFourth;
+    double varianceXFourth     = (averageXFourth_Squared - averageXFourth * averageXFourth) * mCount/(mCount-1);
     double sdXFourth           = sqrt(averageXFourth)/sqrt(mCount);
 
-    double varianceKE          = averageKE_Squared - averageKE * averageKE;
+    double varianceKE          = (averageKE_Squared - averageKE * averageKE) * mCount/(mCount-1);
     double sdKE                = sqrt(varianceKE)/sqrt(mCount);
 
-    double variancePE          = averagePE_Squared - averagePE * averagePE;
+    double variancePE          = (averagePE_Squared - averagePE * averagePE) * mCount/(mCount-1);
     double sdPE                = sqrt(variancePE)/sqrt(mCount);
 
-    double varainceExpDeltaH   = averageExpDeltaH_Squared - averageExpDeltaH * averageExpDeltaH;
+    double varianceDeltaH      = (averageDeltaH_Squared - averageDeltaH*averageDeltaH) * mCount/(mCount-1);
+    double sdDeltaH            = sqrt(varianceDeltaH)/sqrt(mCount);
+
+    double varainceExpDeltaH   = (averageExpDeltaH_Squared - averageExpDeltaH * averageExpDeltaH) * mCount/(mCount-1);
     double sdExpDeltaH         = sqrt(varainceExpDeltaH)/sqrt(mCount);
 
-    double varianceGSEnergy    = averageGSEnergy_Squared - averageGSEnergy * averageGSEnergy;
+    double varianceGSEnergy    = (averageGSEnergy_Squared - averageGSEnergy * averageGSEnergy) * mCount/(mCount-1);
     double sdGSEnergy          = sqrt(varianceGSEnergy)/sqrt(mCount);
-
-    vector<double> sdCorrelation(correlation.size(),0);
-    for(int i = 0; i < sdCorrelation.size();++i)
+    
+    for(int i = 0; i < wavefunction.size(); ++i)
     {
-        double varianceCorrelation = correlationSquared[i] - correlation[i]*correlation[i];
-        sdCorrelation[i] = sqrt(varianceCorrelation)/sqrt(mCount);
+        double varianceWavefunction =   (wavefunctionSquared[i] - wavefunction[i] * wavefunction[i]) * mCount/(mCount-1);
+        wavefunctionError[i]        = sqrt(varianceWavefunction)/sqrt(mCount);
+    }
+    
+    vector<double> correlationError(correlation.size(),0);
+    for(int i = 1; i < correlationError.size();++i)
+    {
+        double varianceCorrelation    = (correlationSquared[i] - correlation[i]*correlation[i]) * mCount/(mCount-1);
+        correlationError[i]           = sqrt(varianceCorrelation)/sqrt(mCount);
     }
 
-    //double groundStateEnergy;
-    //double sdGroundStateEnergy;
-    /*
-    if(vm.count("f-squared"))
-    {
-        groundStateEnergy   = -2.0*lambda*fSquared*averageXSquared + 3.0 * lambda * averageXFourth;
-        sdGroundStateEnergy = sqrt(4.0*lambda*lambda*fSquared*fSquared*averageXSquared + 9.0*lambda*lambda*varianceXFourth)/sqrt(mCount);  
-    }
-
-    else
-    {
-        groundStateEnergy   = muSquared*averageXSquared + 3.0 * lambda * averageXFourth;
-        sdGroundStateEnergy = sqrt(muSquared*muSquared*varianceXSquared + 9.0*lambda*lambda*varianceXFourth)/sqrt(mCount);
-    }  
-    */
     double averageDeltaE   = 0;
     double averageDeltaE_Squared = 0;
 
     for(int i = 1; i < correlation.size(); ++i)
     {
-        double deltaE = -1/static_cast<double>(i) * log(correlation[i]);
-        averageDeltaE += deltaE / (correlation.size()-1);
-        averageDeltaE_Squared += deltaE*deltaE/correlation.size();
+        if(correlation[i]>=0)
+        {
+            double deltaE = -1/static_cast<double>(i) * log(correlation[i]);
+            averageDeltaE += deltaE / (correlation.size()-1);
+            averageDeltaE_Squared += deltaE*deltaE/(correlation.size()-1);
+        }
 
     }    
 
-    double sdDeltaE = averageDeltaE_Squared - averageDeltaE*averageDeltaE;
-
-
-
-
-    
+    double varianceDeltaE = (averageDeltaE_Squared - averageDeltaE*averageDeltaE) * (correlation.size()/(correlation.size()-1));
+    double sdDeltaE       = sqrt(varianceDeltaE)/sqrt(correlation.size());
 
     /**********************************************************************************************************************
     ************************** OUTPUT TO TERMINAL *************************************************************************
     **********************************************************************************************************************/
     cout << "Output...\n";
 
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "Acceptance Rate: " << right << acceptanceRate << " +/- " << sdAcceptance  << endl;
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "Acceptance Rate: " << right << acceptanceRate*100 << " +/- " << sdAcceptance*100  << endl;
     cout << setw(outputColumnWidth) << setfill(' ') << left << "<S>:" << right << averagePE << " +/- " << sdPE << endl;
     cout << setw(outputColumnWidth) << setfill(' ') << left << "<T>:" << right << averageKE << " +/- " << sdKE << endl;
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "<deltaH>:" << right << averageDeltaH << " +/- " << sdDeltaH << endl;
     cout << setw(outputColumnWidth) << setfill(' ') << left << "<exp(-deltaH)>:" << right << averageExpDeltaH << " +/- " << sdExpDeltaH << endl;
     cout << setw(outputColumnWidth) << setfill(' ') << left << "<X>: " << right << averageX << " +/- " << sdX << endl;
     cout << setw(outputColumnWidth) << setfill(' ') << left << "<X^2>:" << right << averageXSquared << " +/- " << sdXSquared << endl;
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "<x^4>:" << right << averageXFourth << " +/- " << sdXFourth << endl; 
     cout << setw(outputColumnWidth) << setfill(' ') << left << "E_0:" << right  << averageGSEnergy << " +/- " << sdGSEnergy << endl;
     cout << setw(outputColumnWidth) << setfill(' ') << left << "E_1 - E_0:" << right << averageDeltaE << " +/- " << sdDeltaE << endl;
     if(vm.count("lambda"))
@@ -525,14 +562,21 @@ int main(int argc, const char * argv[])
     ************************************************* File Output *********************************************************
     ***********************************************************************************************************************/
 
-    ofstream wavefunction(outputName+"/wavefunction.dat");
-    positionHistogram.normalise();
-    wavefunction << positionHistogram;
-
+    ofstream wavefunctionOutput(outputName+"/wavefunction.dat");
+    
+    wavefunctionOutput << histMinValue << ' ' << histMaxValue << '\n' <<  (histMaxValue - histMinValue) / numBins << '\n';
+    for(int i = 0;i < wavefunction.size();++i)
+    {
+        wavefunctionOutput << wavefunction[i] << ' ' << wavefunctionError[i] << '\n';
+    }
+    
+    //positionHistogram2.normalise();
+    //wavefunctionOutput << positionHistogram2;
+    
     ofstream correlationOutput(outputName+"/correlation.dat");
     for(int i = 0; i < correlation.size(); ++i)
     {
-        correlationOutput << i << " " << correlation[i] << ' ' << sdCorrelation[i] << '\n';
+        correlationOutput << i << " " << correlation[i] << ' ' << correlationError[i] << '\n';
     }
 
     ofstream finalConfigOutput(outputName+"/finalConfiguration.dat");

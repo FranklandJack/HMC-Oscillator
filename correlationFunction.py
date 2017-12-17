@@ -39,10 +39,10 @@ if __name__ == "__main__":
     filein.close()
 
     
-    plt.figure(1)
-    plt.subplot(211)
+    #plt.figure(1)
+    #plt.subplot(211)
  
-    plt.plot(latticeTimeData,correlationData,'-')
+    plt.plot(latticeTimeData,correlationData,'x')
     plt.errorbar(latticeTimeData,correlationData,yerr=errorData,linestyle='none')
   
     plt.title("Corelation Function vs. latticeTime")
@@ -50,16 +50,14 @@ if __name__ == "__main__":
     plt.ylabel("correlation Function")
     plt.yscale("linear")
     
-   
-    plt.subplot(212)
-    plt.plot(latticeTimeData,correlationData,'-')
-    plt.errorbar(latticeTimeData,correlationData,yerr=errorData,linestyle='none')
+    #plt.subplot(212)
+   # plt.plot(latticeTimeData,correlationData,'-')
+   # plt.errorbar(latticeTimeData,correlationData,yerr=errorData,linestyle='none')
   
-    plt.title("Corelation Function vs. latticeTime")
-    plt.xlabel("latticeTime")
-    plt.ylabel("correlation Function")
-    plt.yscale('log')
-
+   # plt.title("Corelation Function vs. latticeTime")
+   # plt.xlabel("latticeTime")
+   # plt.ylabel("correlation Function")
+   # plt.yscale('log')
 
     
     # show the plot

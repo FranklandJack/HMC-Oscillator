@@ -7,8 +7,11 @@ import statistics as stat
 # import sys so that we may access command line arguments
 import sys 
 
-def trueWavefunction(x):
+def discreteWavefunction(x):
     return 0.59 * np.exp(-1.1*x*x)
+
+def continuumWavefunction(x):
+    return 1/np.sqrt(np.pi)*np.exp(-x*x)
 
 # define main method
 if __name__ == "__main__":
@@ -49,7 +52,7 @@ if __name__ == "__main__":
         wavefunctions.append(inputData)
 
 
-        # close file for saftey
+        # close file for safety
         filein.close()
 
     
@@ -67,7 +70,8 @@ if __name__ == "__main__":
     # plot histogram with various customizations
     plt.plot(position,meanWavefunction,'x',color='red', markersize='4',label="Measured")
     plt.errorbar(position,meanWavefunction,yerr=wavefunctionError,linestyle='none')
-    plt.plot(trueData,trueWavefunction(trueData),label="Theory",color='blue',linewidth='0.3')
+    plt.plot(trueData,continuumWavefunction(trueData),label="Continuum Theory",color='blue',linewidth='0.3')
+    plt.plot(trueData,discreteWavefunction(trueData),'--',label="Discrete Theory",color='green')
     plt.title("Harmonic Oscillator Wavefunction")
     plt.xlabel(r'$x$')
     plt.ylabel(r'$|\psi(x)|^2$')

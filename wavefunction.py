@@ -13,7 +13,7 @@ import statistics as stat
 if __name__ == "__main__":
 
 
-    # prepare list to hold probabilites
+    # prepare list to hold probabilities
     wavefunctions = []
 
     # get number of samples
@@ -33,7 +33,10 @@ if __name__ == "__main__":
 
     # second line is the bin width
     binwidth    = float(inputData[1])
+
+    # create an array of positions consisting of centre of each bin 
     position    = np.arange(minimum+binwidth/2, maximum, binwidth)
+    
 
     for i in range(0, samples):
 
@@ -48,7 +51,7 @@ if __name__ == "__main__":
         wavefunctions.append(inputData)
 
 
-        # close file for saftey
+        # close file for safety
         filein.close()
 
     

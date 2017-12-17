@@ -115,7 +115,7 @@ double correlationFunction(const std::vector<double> &configuration, int t)
     double normalisation = 0;
     for(int i = 0; i < configuration.size(); ++i)
     {
-        sum += configuration[i]*configuration[(t+i)%(configuration.size())];
+        sum           += configuration[i]*configuration[(t+i)%(configuration.size())];
         normalisation += configuration[i]*configuration[i];
     }
 
