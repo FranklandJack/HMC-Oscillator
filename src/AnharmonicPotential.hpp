@@ -1,8 +1,8 @@
-#ifndef Potential2_hpp
-#define Potential2_hpp
+#ifndef AnharmonicPotential_hpp
+#define AnharmonicPotential_hpp
 #include "Ipotential.hpp"
 
-class Potential2 : public Ipotential
+class AnharmonicPotential : public Ipotential
 {
 private:
     // member varible to hold the frequency of the oscillator
@@ -11,7 +11,7 @@ private:
 
 public:
     // we just need a simple constructor to initialise the functor with the values
-    Potential2(double lambda, double fSquared);
+    AnharmonicPotential(double lambda, double fSquared);
 
     // overload the operator(), then when we act on an x value with the 
     // functor it will return the potential at the displacment

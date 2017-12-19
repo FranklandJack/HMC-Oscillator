@@ -16,8 +16,9 @@
 #include <boost/filesystem.hpp>
 
 #include "Ipotential.hpp"
-#include "Potential1.hpp"
-#include "Potential2.hpp"
+#include "HarmonicPotential.hpp"
+#include "AnharmonicPotential.hpp"
+#include "OcticPotential.hpp"
 #include "LatticeFunctions.hpp"
 #include "Histogram.hpp"
 #include "ProgressBar.hpp"
@@ -26,6 +27,15 @@ using namespace std;
 
 // Simplifies the input options.
 namespace po = boost::program_options;
+
+enum PotentialType
+{
+    Potential_Harmonic,
+    Potential_Anharmonic,
+    Potential_Octic,
+    Potential_MAX_POTENTIAL
+
+};
 
 int main(int argc, const char * argv[]) 
 {
@@ -46,8 +56,8 @@ int main(int argc, const char * argv[])
     // Oscillator Parameters.
     double mass;
     double muSquared;
-    double lambda = 0;
-    double fSquared = 0;
+    double lambda;
+    double fSquared;
 
     // HMC Parameters.
     int    lfStepCount;
@@ -59,12 +69,15 @@ int main(int argc, const char * argv[])
     int mInterval;
 
     // Choice of potential.
-    bool useAltPotential = false;
+    PotentialType potentialChoice;
 
     // Histogram parameters.
     int    numBins;
     double histMaxValue;
     double histMinValue;
+
+    // Tempering parameter sqrt(alpha)
+    double temperingParameter;
 
     // Set up optional command line argument.
     po::options_description desc("Options for hmc oscillator program");
@@ -76,8 +89,8 @@ int main(int argc, const char * argv[])
         ("lattice-spacing,a", po::value<double>(&latticeSpacing)->default_value(1.0), "The spacing between lattice sites")
         ("mass,m", po::value<double>(&mass)->default_value(1.0), "The mass of the oscillator")
         ("mu-squared,u", po::value<double>(&muSquared)->default_value(1), "The mu^2 of the oscillator")
-        ("lambda,l", po::value<double>(&lambda), "The lambda value of the oscillator")
-        ("f-squared,f", po::value<double>(&fSquared), "The f^2 value of the oscillator")
+        ("lambda,l", po::value<double>(&lambda)->default_value(0.0), "The lambda value of the oscillator")
+        ("f-squared,f", po::value<double>(&fSquared)->default_value(0.0), "The f^2 value of the oscillator")
         ("lf-step-count,N", po::value<int>(&lfStepCount)->default_value(5), "The number of leapfrog steps")
         ("lf-step-size,d", po::value<double>(&lfStepSize)->default_value(0.2), "The leapfrog step size")
         ("configuration-count,c", po::value<int>(&configCount)->default_value(100000), "The number of configurations")
@@ -86,7 +99,9 @@ int main(int argc, const char * argv[])
         ("number-bins,B", po::value<int>(&numBins)->default_value(100), "The number of bins in the position histogram")
         ("histogram-max-value,R", po::value<double>(&histMaxValue)->default_value(4.0), "Maximum value in histogram range")
         ("histogram-min-value,r", po::value<double>(&histMinValue)->default_value(-4.0), "Minimum value in histogram range")
-        ("potential,p", "use alternative potential")
+        ("tempering-parameter,T", po::value<double>(&temperingParameter)->default_value(1.0), "sqrt(alpha) that is the tempering parameter")
+        ("anharmonic", "use alternative potential")
+        ("octic", "use octic potential")
         ("help,h", "produce help message");
 
     // Make arguments available to program
@@ -102,9 +117,18 @@ int main(int argc, const char * argv[])
     }
 
     // If the user specifies alternate potential need to let the program know.
-    if(vm.count("f-squared")) 
+    if(vm.count("anharmonic")) 
     {
-        useAltPotential = true;
+        potentialChoice = Potential_Anharmonic;
+    }
+    else if(vm.count("octic"))
+    {
+        potentialChoice = Potential_Octic;
+    }
+
+    else
+    {
+        potentialChoice = Potential_Harmonic;
     }
 
     // Tell user their input values to check they are correct.
@@ -119,15 +143,26 @@ int main(int argc, const char * argv[])
     cout << setw(outputColumnWidth) << setfill(' ') << left << "Measurement Interval: " << right << mInterval << '\n';
     cout << setw(outputColumnWidth) << setfill(' ') << left << "Mass: " << right << mass << '\n';
     // Depending on which potential was used report correct parameters.
-    if(useAltPotential)
+    switch(potentialChoice)
     {
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "f^2: " << right << fSquared << '\n';
+        case Potential_Harmonic: 
+            cout << setw(outputColumnWidth) << setfill(' ') << left << "V(x): " << right << "0.5.mu^2.x + lambda.x^4" << '\n';
+            cout << setw(outputColumnWidth) << setfill(' ') << left << "mu^2: " << right << muSquared << '\n';
+            cout << setw(outputColumnWidth) << setfill(' ') << left << "Lambda: " << right << lambda << '\n' << '\n';
+            break;
+
+        case Potential_Anharmonic: 
+            cout << setw(outputColumnWidth) << setfill(' ') << left << "V(x): " << right << "lambda.(x^2-f^2)^2" << '\n';
+            cout << setw(outputColumnWidth) << setfill(' ') << left << "f^2: " << right << fSquared << '\n';
+            cout << setw(outputColumnWidth) << setfill(' ') << left << "Lambda: " << right << lambda << '\n' << '\n';
+            break;
+
+        case Potential_Octic: 
+            cout << setw(outputColumnWidth) << setfill(' ') << left << "V(x): " << right << "lambda.(x^2-f^2)^4" << '\n';
+            cout << setw(outputColumnWidth) << setfill(' ') << left << "f^2: " << right << fSquared << '\n';
+            cout << setw(outputColumnWidth) << setfill(' ') << left << "Lambda: " << right << lambda << '\n' << '\n';
+            break;
     }
-    else
-    {
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "mu^2: " << right << muSquared << '\n';
-    }
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "Lambda: " << right << lambda << '\n' << '\n';
 
     /*************************************************************************************************************************
     ****************************************************** Create Output Directory ************************************************
@@ -158,19 +193,26 @@ int main(int argc, const char * argv[])
     
     
     // Create potentials for each type.
-    Potential1   potential1(muSquared, lambda);
-    Potential2   potential2(lambda, fSquared);
-    Ipotential  *potential = nullptr;
+    HarmonicPotential       harmonicPotential(muSquared, lambda);
+    AnharmonicPotential     anharmonicPotential(lambda, fSquared);
+    OcticPotential          octicPotential(lambda, fSquared);
+    Ipotential              *potential = nullptr;
 
-    // If user specified alternative potential use that.
-    if(vm.count("f-squared"))
+    switch(potentialChoice)
     {
-        potential = &potential2;
+        case Potential_Harmonic: 
+            potential = &harmonicPotential;
+            break;
+
+        case Potential_Anharmonic: 
+            potential = &anharmonicPotential;
+            break;
+
+        case Potential_Octic: 
+            potential = &octicPotential;
+            break;
     }
-    else
-    {
-        potential = &potential1;
-    }
+
 
     //Create output file for position.
     ofstream positionOutput(outputName+"/position.dat");
@@ -275,7 +317,7 @@ int main(int argc, const char * argv[])
         originalMomentum      = momentum;
         
         // Do the leap frog update.
-        leapFrog(configuration, momentum, latticeSpacing, lfStepCount, lfStepSize, potential, mass);
+        leapFrogTempering(configuration, momentum, latticeSpacing, lfStepCount, lfStepSize, potential, mass, temperingParameter);
         
         // Calculate the Hamiltonian for the whole configuration before and after the update.
         double hamiltonianBefore = oscillatorHamiltonian(originalMomentum, originalConfiguration, latticeSpacing, mass, potential);
@@ -324,7 +366,6 @@ int main(int argc, const char * argv[])
                 meanXSquared += x*x;
                 meanXFourth  += x*x*x*x;
                 positionHistogram(x);
-                //positionHistogram2(x);
 
             }
 
@@ -370,14 +411,19 @@ int main(int argc, const char * argv[])
             averageExpDeltaH         += meanExpdeltaH;
             averageExpDeltaH_Squared += meanExpdeltaH*meanExpdeltaH;
 
-
-            if(useAltPotential)
+            switch(potentialChoice)
             {
-                meanGSEnergy = -4.0 * fSquared * lambda * meanXSquared + 3.0 * lambda * meanXFourth + lambda * fSquared * fSquared;
-            }
-            else
-            {
+            case Potential_Harmonic: 
                 meanGSEnergy = muSquared * meanXSquared + 3.0 * lambda * meanXFourth;
+                break;
+
+            case Potential_Anharmonic: 
+                meanGSEnergy = -4.0 * fSquared * lambda * meanXSquared + 3.0 * lambda * meanXFourth + lambda * fSquared * fSquared;
+                break;
+
+            case Potential_Octic: 
+                meanGSEnergy = muSquared * meanXSquared + 3.0 * lambda * meanXFourth;
+                break;
             }
 
             averageGSEnergy         += meanGSEnergy;
@@ -507,7 +553,7 @@ int main(int argc, const char * argv[])
     cout << setw(outputColumnWidth) << setfill(' ') << left << "<x^4>:" << right << averageXFourth << " +/- " << sdXFourth << endl; 
     cout << setw(outputColumnWidth) << setfill(' ') << left << "E_0:" << right  << averageGSEnergy << " +/- " << sdGSEnergy << endl;
     cout << setw(outputColumnWidth) << setfill(' ') << left << "E_1 - E_0:" << right << averageDeltaE << " +/- " << sdDeltaE << endl;
-    if(vm.count("lambda"))
+    if(potentialChoice == Potential_Anharmonic || potentialChoice == Potential_Octic || lambda != 0)
     {
     cout << setw(outputColumnWidth) << setfill(' ') << left << "Tunnel Rate:" << right << tunnelRate << endl;
     }
@@ -518,10 +564,11 @@ int main(int argc, const char * argv[])
 
     ofstream wavefunctionOutput(outputName+"/wavefunction.dat");
     
-    wavefunctionOutput << histMinValue << ' ' << histMaxValue << '\n' <<  (histMaxValue - histMinValue) / numBins << '\n';
+    //wavefunctionOutput << histMinValue << ' ' << histMaxValue << '\n' <<  (histMaxValue - histMinValue) / numBins << '\n';
+    double histSpacing = (histMaxValue - histMinValue) / numBins;
     for(int i = 0;i < wavefunction.size();++i)
     {
-        wavefunctionOutput << wavefunction[i] << ' ' << wavefunctionError[i] << '\n';
+        wavefunctionOutput << (histMinValue + histSpacing/2) + i * histSpacing << ' ' << wavefunction[i] << ' ' << wavefunctionError[i] << '\n';
     }
     
     
@@ -534,7 +581,7 @@ int main(int argc, const char * argv[])
     ofstream finalConfigOutput(outputName+"/finalConfiguration.dat");
     for(int i = 0; i <configuration.size();++i)
     {
-        finalConfigOutput << configuration[i] <<'\n';
+        finalConfigOutput << i << ' ' << configuration[i] <<'\n';
     }
 
     /**********************************************************************************************************************

@@ -108,6 +108,160 @@ void leapFrog(std::vector<double> &configuration, std::vector<double> &momentum,
 
 }
 
+void leapFrogTempering(std::vector<double> &configuration, std::vector<double> &momentum, double latticeSpacing, int lfStepCount, double lfStepSize, const Ipotential *potential, double mass, double alpha)
+{
+    int latticeSize = configuration.size();
+
+    for(int n = 0; n < lfStepCount/2; ++n)
+    {
+
+        // Intial half step in momentum.
+        // First lattice site has special neighbour conditions. 
+
+        // For tempering multiple each momenta by sqrt(alpha) before first half step.
+        for(auto& p : momentum)
+        {
+            p *= alpha;
+        }
+        momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize - 1] ) + latticeSpacing * (*potential)[configuration[0]]) * (lfStepSize/2.0);
+
+        // All remaining sites except last have normal neighbours.
+        for(int i = 1; i <= latticeSize - 2; ++i)
+        {
+            momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * (*potential)[configuration[i]]) * (lfStepSize/2.0);
+        }
+
+        // Final site has special neighbour conditions.
+        momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * (*potential)[configuration[latticeSize-1]]) * (lfStepSize/2.0);
+
+
+        // Full step in position. 
+        for(int i = 0; i < latticeSize; ++i)
+        {
+            configuration[i] = configuration[i] + lfStepSize * momentum[i] / mass;
+        }
+
+        // half step in momentum.
+        // First lattice site has special neighbour conditions. 
+        momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize - 1] ) + latticeSpacing * (*potential)[configuration[0]]) * (lfStepSize/2.0);
+
+        // All remaining sites except last have normal neighbours.
+        for(int i = 1; i <= latticeSize - 2; ++i)
+        {
+            momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * (*potential)[configuration[i]]) * (lfStepSize/2.0);
+        }
+
+        // Final site has special neighbour conditions.
+        momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * (*potential)[configuration[latticeSize-1]]) * (lfStepSize/2.0);
+
+        for(auto& p : momentum)
+        {
+            p *= alpha;
+        }
+
+
+    }
+
+    if(0 != lfStepCount%2)
+    {
+        // Intial half step in momentum.
+        // First lattice site has special neighbour conditions. 
+
+        // For tempering multiple each momenta by sqrt(alpha) before first half step.
+        for(auto& p : momentum)
+        {
+            p *= alpha;
+        }
+        momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize - 1] ) + latticeSpacing * (*potential)[configuration[0]]) * (lfStepSize/2.0);
+
+        // All remaining sites except last have normal neighbours.
+        for(int i = 1; i <= latticeSize - 2; ++i)
+        {
+            momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * (*potential)[configuration[i]]) * (lfStepSize/2.0);
+        }
+
+        // Final site has special neighbour conditions.
+        momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * (*potential)[configuration[latticeSize-1]]) * (lfStepSize/2.0);
+
+
+        // Full step in position. 
+        for(int i = 0; i < latticeSize; ++i)
+        {
+            configuration[i] = configuration[i] + lfStepSize * momentum[i] / mass;
+        }
+
+        // half step in momentum.
+        // First lattice site has special neighbour conditions. 
+        momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize - 1] ) + latticeSpacing * (*potential)[configuration[0]]) * (lfStepSize/2.0);
+
+        // All remaining sites except last have normal neighbours.
+        for(int i = 1; i <= latticeSize - 2; ++i)
+        {
+            momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * (*potential)[configuration[i]]) * (lfStepSize/2.0);
+        }
+
+        // Final site has special neighbour conditions.
+        momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * (*potential)[configuration[latticeSize-1]]) * (lfStepSize/2.0);
+
+        for(auto& p : momentum)
+        {
+            p /= alpha;
+        }
+
+    }
+
+    for(int n = 0; n < lfStepCount/2; ++n)
+    {
+
+        // Intial half step in momentum.
+        // First lattice site has special neighbour conditions. 
+
+        // For tempering multiple each momenta by sqrt(alpha) before first half step.
+        for(auto& p : momentum)
+        {
+            p /= alpha;
+        }
+        momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize - 1] ) + latticeSpacing * (*potential)[configuration[0]]) * (lfStepSize/2.0);
+
+        // All remaining sites except last have normal neighbours.
+        for(int i = 1; i <= latticeSize - 2; ++i)
+        {
+            momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * (*potential)[configuration[i]]) * (lfStepSize/2.0);
+        }
+
+        // Final site has special neighbour conditions.
+        momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * (*potential)[configuration[latticeSize-1]]) * (lfStepSize/2.0);
+
+
+        // Full step in position. 
+        for(int i = 0; i < latticeSize; ++i)
+        {
+            configuration[i] = configuration[i] + lfStepSize * momentum[i] / mass;
+        }
+
+        // half step in momentum.
+        // First lattice site has special neighbour conditions. 
+        momentum[0] = momentum[0] - ((mass/latticeSpacing) * (2 * configuration[0] - configuration[1] - configuration[latticeSize - 1] ) + latticeSpacing * (*potential)[configuration[0]]) * (lfStepSize/2.0);
+
+        // All remaining sites except last have normal neighbours.
+        for(int i = 1; i <= latticeSize - 2; ++i)
+        {
+            momentum[i] = momentum[i] - ((mass/latticeSpacing) * (2 * configuration[i] - configuration[i+1] - configuration[i-1] ) + latticeSpacing * (*potential)[configuration[i]]) * (lfStepSize/2.0);
+        }
+
+        // Final site has special neighbour conditions.
+        momentum[latticeSize-1] = momentum[latticeSize-1] - ((mass/latticeSpacing) * (2 * configuration[latticeSize-1] - configuration[0] - configuration[latticeSize-2] ) + latticeSpacing * (*potential)[configuration[latticeSize-1]]) * (lfStepSize/2.0);
+
+        for(auto& p : momentum)
+        {
+            p /= alpha;
+        }
+
+
+    }
+
+}
+
 double correlationFunction(const std::vector<double> &configuration, int t)
 { 
     

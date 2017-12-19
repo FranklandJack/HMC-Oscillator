@@ -1,29 +1,25 @@
-
-// functor to deal with the potential of a 1-D harmonic/enharmonic potential
-// by using a functor we can pass it into various functions in our method
 #ifndef HarmonicPotential_hpp
 #define HarmonicPotential_hpp
-#include "OscPotential.hpp"
+#include "Ipotential.hpp"
 
-class OscPotential : public OscPotential
+class HarmonicPotential : public Ipotential
 {
 private:
     // member varible to hold the frequency of the oscillator
-    double m_muSquared;
-    // member variavle to hold the enharmonic coeifcient
     double m_lambda;
+    double m_muSquared;
 
 public:
     // we just need a simple constructor to initialise the functor with the values
-    OscPotential(double muSquared = 1.0, double lambda = 0.0);
+    HarmonicPotential(double muSquared, double lambda);
 
     // overload the operator(), then when we act on an x value with the 
     // functor it will return the potential at the displacment
-    double  operator()(double x) const;
+    virtual double  operator()(double x) const override;
 
     // overload the operator[], then when we act on an x value with the 
     // functor it will return the derivatice of the potential at the displacment
-    double operator[](double x) const;
+    virtual double operator[](double x) const override;
 
 };
 
