@@ -41,9 +41,10 @@ void Histogram::operator()(double x)
     if(bin>=0 && bin<m_binCount) 
     {
         ++m_counts[bin];
+        ++m_totalCounts;
     }
     // All outliers are just ignored.
-    ++m_totalCounts;
+    
 }
 
 void Histogram::normalise()
