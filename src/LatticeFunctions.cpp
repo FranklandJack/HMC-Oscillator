@@ -24,7 +24,7 @@ double latticePotentialEnergy(const std::vector<double> &configuration, double l
 }
 
 // function to calculate the HMC kinetic energy term given by p*p/2m
-double kineticEnergy(const std::vector<double> &momentum, double mass)
+double kineticEnergy(const std::vector<double> &momentum)
 {
     double totalKE = 0;
 
@@ -33,14 +33,14 @@ double kineticEnergy(const std::vector<double> &momentum, double mass)
         totalKE += p*p;
     }
 
-    return totalKE/(2.0 * mass);
+    return totalKE/(2.0);
 
 }
 
 //calculates hmc hamiltonian  according to H(q,p) = p^2/2m + S(q)
 double oscillatorHamiltonian(const std::vector<double>& p, const std::vector<double>& q, double latticeSpacing, double mass, const Ipotential *potential)
 {
-    return kineticEnergy(p,mass) + latticePotentialEnergy(q, latticeSpacing, mass, potential);
+    return kineticEnergy(p) + latticePotentialEnergy(q, latticeSpacing, mass, potential);
 }
 
 
@@ -65,7 +65,7 @@ void leapFrog(std::vector<double> &configuration, std::vector<double> &momentum,
     // Full step in position. 
     for(int i = 0; i < latticeSize; ++i)
     {
-        configuration[i] = configuration[i] + lfStepSize * momentum[i] / mass;
+        configuration[i] = configuration[i] + lfStepSize * momentum[i];
     }
 
     // N-1 Full steps in momentum and position.
@@ -87,7 +87,7 @@ void leapFrog(std::vector<double> &configuration, std::vector<double> &momentum,
         // Full step in position. 
         for(int i = 0; i < latticeSize; ++i)
         {
-            configuration[i] = configuration[i] + lfStepSize * momentum[i] / mass;
+            configuration[i] = configuration[i] + lfStepSize * momentum[i];
         }
 
     }
@@ -138,7 +138,7 @@ void leapFrogTempering(std::vector<double> &configuration, std::vector<double> &
         // Full step in position. 
         for(int i = 0; i < latticeSize; ++i)
         {
-            configuration[i] = configuration[i] + lfStepSize * momentum[i] / mass;
+            configuration[i] = configuration[i] + lfStepSize * momentum[i];
         }
 
         // half step in momentum.
@@ -187,7 +187,7 @@ void leapFrogTempering(std::vector<double> &configuration, std::vector<double> &
         // Full step in position. 
         for(int i = 0; i < latticeSize; ++i)
         {
-            configuration[i] = configuration[i] + lfStepSize * momentum[i] / mass;
+            configuration[i] = configuration[i] + lfStepSize * momentum[i];
         }
 
         // half step in momentum.
@@ -236,7 +236,7 @@ void leapFrogTempering(std::vector<double> &configuration, std::vector<double> &
         // Full step in position. 
         for(int i = 0; i < latticeSize; ++i)
         {
-            configuration[i] = configuration[i] + lfStepSize * momentum[i] / mass;
+            configuration[i] = configuration[i] + lfStepSize * momentum[i];
         }
 
         // half step in momentum.
@@ -274,5 +274,16 @@ double correlationFunction(const std::vector<double> &configuration, int t)
     }
 
     return sum/normalisation;
+}
+
+double slope(const std::vector<double>& x, const std::vector<double>& y)
+{
+    const auto n    = x.size();
+    const auto xSum = std::accumulate(x.begin(), x.end(), 0.0);
+    const auto ySum = std::accumulate(y.begin(), y.end(), 0.0);
+    const auto xxSum= std::inner_product(x.begin(),x.end(),x.begin(),0.0);
+    const auto xySum= std::inner_product(x.begin(),x.end(),y.begin(),0.0);
+    const auto slope= (n * xySum - xSum * ySum ) / (n * xxSum - xSum * xSum);
+    return slope;
 }
 

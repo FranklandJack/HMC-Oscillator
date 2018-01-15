@@ -4,6 +4,8 @@
 #include "Ipotential.hpp"
 #include <vector>
 #include <cmath>
+#include <numeric>
+#include <algorithm>
 
 //This is the total action for the lattice, not the normal PE energy
 //this is inline with the definition of S being the potential in HMC 
@@ -11,7 +13,7 @@ double latticePotentialEnergy(const std::vector<double> &q, double latticeSpacin
 
 
 // function to calculate the HMC kinetic energy term given by p*p/2m
-double kineticEnergy(const std::vector<double> &momenta, double mass);
+double kineticEnergy(const std::vector<double> &momenta);
 
 
 //calculates hmc hamiltonian  according to H(q,p) = p^2/2m + S(q)
@@ -30,6 +32,8 @@ void leapFrogTempering(std::vector<double> &configuration, std::vector<double> &
 // function to calculate correlation
 
 double correlationFunction(const std::vector<double> &configuration, int t);
+
+double slope(const std::vector<double>& x, const std::vector<double>& y);
 
 
 

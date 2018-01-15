@@ -42,13 +42,18 @@ if __name__ == "__main__":
     #plt.figure(1)
     #plt.subplot(211)
  
-    plt.plot(latticeTimeData,correlationData,'x')
+    plt.semilogy(latticeTimeData,correlationData,'x',label='Measured Data')
     plt.errorbar(latticeTimeData,correlationData,yerr=errorData,linestyle='none')
   
     plt.title("Corelation Function vs. latticeTime")
     plt.xlabel("latticeTime")
     plt.ylabel("correlation Function")
-    plt.yscale("linear")
+
+    trueData = np.arange(0,8)
+    plt.plot(trueData,np.exp(-trueData*np.sqrt(5)/2),label='Discrete Theory')
+    plt.plot(trueData,np.exp(-trueData),label='Continuum Theory')
+    plt.legend()
+    
     
     #plt.subplot(212)
    # plt.plot(latticeTimeData,correlationData,'-')

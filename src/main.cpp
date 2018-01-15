@@ -162,6 +162,9 @@ int main(int argc, const char * argv[])
             cout << setw(outputColumnWidth) << setfill(' ') << left << "f^2: " << right << fSquared << '\n';
             cout << setw(outputColumnWidth) << setfill(' ') << left << "Lambda: " << right << lambda << '\n' << '\n';
             break;
+        default:
+            cout << "No potential selected, exiting program...";
+            return 1;
     }
 
     /*************************************************************************************************************************
@@ -211,6 +214,10 @@ int main(int argc, const char * argv[])
         case Potential_Octic: 
             potential = &octicPotential;
             break;
+
+        default:
+            cout << "No potential selected, exiting program";
+            return 1;
     }
 
 
@@ -317,7 +324,7 @@ int main(int argc, const char * argv[])
         originalMomentum      = momentum;
         
         // Do the leap frog update.
-        leapFrogTempering(configuration, momentum, latticeSpacing, lfStepCount, lfStepSize, potential, mass, temperingParameter);
+        leapFrog(configuration, momentum, latticeSpacing, lfStepCount, lfStepSize, potential, mass);
         
         // Calculate the Hamiltonian for the whole configuration before and after the update.
         double hamiltonianBefore = oscillatorHamiltonian(originalMomentum, originalConfiguration, latticeSpacing, mass, potential);
@@ -387,7 +394,7 @@ int main(int argc, const char * argv[])
             averageX_Squared         += meanX * meanX;
 
             // Quicker to output position values to file on each iteration rather than storing them and outputting them later.s
-            positionOutput << meanX << '\n';
+            positionOutput << (config-burnPeriod)/mInterval << ' ' << meanX << '\n';
 
             averageXSquared          += meanXSquared;
             averageXSquared_Squared  += meanXSquared * meanXSquared;
@@ -399,7 +406,7 @@ int main(int argc, const char * argv[])
             averagePE                += meanPE;
             averagePE_Squared        += meanPE*meanPE;
 
-            meanKE                    = kineticEnergy(momentum, mass)/latticeSize;
+            meanKE                    = kineticEnergy(momentum)/latticeSize;
             averageKE                += meanKE;
             averageKE_Squared        += meanKE * meanKE;
 
@@ -521,7 +528,21 @@ int main(int argc, const char * argv[])
         correlationError[i]           = sqrt(varianceCorrelation)/sqrt(mCount);
     }
 
-    double averageDeltaE   = 0;
+    vector<double> energyGap(correlation.size(),0);
+    vector<double> deltaT(correlation.size(),0);
+    for(int i = 0; i < correlation.size(); ++i)
+    {
+        if(correlation[i] > 0)
+        {
+            energyGap[i] = -1.0* log(correlation[i]);
+            deltaT[i] = latticeSpacing * i;
+        }
+    }
+
+    double averageDeltaE   = slope(energyGap,deltaT);
+
+    /*
+    
     double averageDeltaE_Squared = 0;
 
     for(int i = 1; i < correlation.size(); ++i)
@@ -537,6 +558,7 @@ int main(int argc, const char * argv[])
 
     double varianceDeltaE = (averageDeltaE_Squared - averageDeltaE*averageDeltaE) * (correlation.size()/(correlation.size()-1));
     double sdDeltaE       = sqrt(varianceDeltaE)/sqrt(correlation.size());
+    */
 
     /**********************************************************************************************************************
     ************************** OUTPUT TO TERMINAL *************************************************************************
@@ -552,7 +574,7 @@ int main(int argc, const char * argv[])
     cout << setw(outputColumnWidth) << setfill(' ') << left << "<X^2>:" << right << averageXSquared << " +/- " << sdXSquared << endl;
     cout << setw(outputColumnWidth) << setfill(' ') << left << "<x^4>:" << right << averageXFourth << " +/- " << sdXFourth << endl; 
     cout << setw(outputColumnWidth) << setfill(' ') << left << "E_0:" << right  << averageGSEnergy << " +/- " << sdGSEnergy << endl;
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "E_1 - E_0:" << right << averageDeltaE << " +/- " << sdDeltaE << endl;
+    cout << setw(outputColumnWidth) << setfill(' ') << left << "E_1 - E_0:" << right << averageDeltaE << " +/- " << ' ' << endl;
     if(potentialChoice == Potential_Anharmonic || potentialChoice == Potential_Octic || lambda != 0)
     {
     cout << setw(outputColumnWidth) << setfill(' ') << left << "Tunnel Rate:" << right << tunnelRate << endl;
