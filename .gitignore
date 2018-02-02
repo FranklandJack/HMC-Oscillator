@@ -1,1 +1,4 @@
+# Stop any data getting pushed.
 *.dat
+*.txt
+*.log

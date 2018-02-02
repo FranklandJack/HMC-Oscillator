@@ -7,34 +7,17 @@
 #include <numeric>
 #include <algorithm>
 
-//This is the total action for the lattice, not the normal PE energy
-//this is inline with the definition of S being the potential in HMC 
-double latticePotentialEnergy(const std::vector<double> &q, double latticeSpacing, double mass, const Ipotential *potential);
+double latticeAction(const std::vector<double> &configuration, double latticeSpacing, double mass, const Ipotential *potential);
 
-
-// function to calculate the HMC kinetic energy term given by p*p/2m
 double kineticEnergy(const std::vector<double> &momenta);
 
-
-//calculates hmc hamiltonian  according to H(q,p) = p^2/2m + S(q)
 double oscillatorHamiltonian(const std::vector<double>& p, const std::vector<double>& q, double latticeSpacing, double mass, const Ipotential *potential);
 
-
-// function to perform leapfrog only!, pass position and momentum vectors by reference and it will update them 
-
-// function to perform leapfrog on whole configuration and return an updated configuration and update the momentum. This function will actually changes the momenta
-// but will return an updated configuration, this allows us to keep the original configuration incase we need to reject the new one and since the momenta are discarded 
-// anyway we will not need them 
 void leapFrog(std::vector<double> &configuration, std::vector<double> &momentum, double latticeSpacing, int leapfrogSteps, double leapfrogStepSize, const Ipotential *potential, double mass = 1.0);
 
 void leapFrogTempering(std::vector<double> &configuration, std::vector<double> &momentum, double latticeSpacing, int leapfrogSteps, double leapfrogStepSize, const Ipotential *potential, double mass = 1.0, double alpha = 1.0);
 
-// function to calculate correlation
-
 double correlationFunction(const std::vector<double> &configuration, int t);
-
-double slope(const std::vector<double>& x, const std::vector<double>& y);
-
 
 
 #endif

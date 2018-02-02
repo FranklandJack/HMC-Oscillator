@@ -1,13 +1,8 @@
 #include "LatticeFunctions.hpp"
 
-
-
-
-//This is the total action for the lattice, not the normal PE energy
-//this is inline with the definition of S being the potential in HMC 
-double latticePotentialEnergy(const std::vector<double> &configuration, double latticeSpacing, double mass, const Ipotential *potential)
+double latticeAction(const std::vector<double> &configuration, double latticeSpacing, double mass, const Ipotential *potential)
 {
-    //create sum value which we add each term to
+   
     double totalPotentialEnergy = 0.0;
 
     int latticeSize = configuration.size();
@@ -19,11 +14,9 @@ double latticePotentialEnergy(const std::vector<double> &configuration, double l
 
     totalPotentialEnergy += (0.5 * mass * (configuration[0]-configuration[latticeSize-1]) * (configuration[0]-configuration[latticeSize-1])) / latticeSpacing + latticeSpacing * (*potential)(configuration[latticeSize-1]);
 
-    
     return totalPotentialEnergy;
 }
 
-// function to calculate the HMC kinetic energy term given by p*p/2m
 double kineticEnergy(const std::vector<double> &momentum)
 {
     double totalKE = 0;
@@ -37,10 +30,10 @@ double kineticEnergy(const std::vector<double> &momentum)
 
 }
 
-//calculates hmc hamiltonian  according to H(q,p) = p^2/2m + S(q)
-double oscillatorHamiltonian(const std::vector<double>& p, const std::vector<double>& q, double latticeSpacing, double mass, const Ipotential *potential)
+
+double oscillatorHamiltonian(const std::vector<double>& momenta, const std::vector<double>& configuration, double latticeSpacing, double mass, const Ipotential *potential)
 {
-    return kineticEnergy(p) + latticePotentialEnergy(q, latticeSpacing, mass, potential);
+    return kineticEnergy(momenta) + latticeAction(configuration, latticeSpacing, mass, potential);
 }
 
 
@@ -276,14 +269,5 @@ double correlationFunction(const std::vector<double> &configuration, int t)
     return sum/normalisation;
 }
 
-double slope(const std::vector<double>& x, const std::vector<double>& y)
-{
-    const auto n    = x.size();
-    const auto xSum = std::accumulate(x.begin(), x.end(), 0.0);
-    const auto ySum = std::accumulate(y.begin(), y.end(), 0.0);
-    const auto xxSum= std::inner_product(x.begin(),x.end(),x.begin(),0.0);
-    const auto xySum= std::inner_product(x.begin(),x.end(),y.begin(),0.0);
-    const auto slope= (n * xySum - xSum * ySum ) / (n * xxSum - xSum * xSum);
-    return slope;
-}
+
 

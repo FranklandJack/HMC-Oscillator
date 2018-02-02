@@ -22,28 +22,26 @@
 #include "LatticeFunctions.hpp"
 #include "Histogram.hpp"
 #include "ProgressBar.hpp"
+#include "Timer.hpp"
+#include "makeDirectory.hpp"
+#include "HMCLattice1D.hpp"
+#include "DataArray.hpp"
+#include "HMCInput.hpp"
+#include "HMCOutput.hpp"
+#include "metropolisUpdate.hpp"
+
 // Lots of use of the standard library so use namespace here.
 using namespace std;
 
 // Simplifies the input options.
 namespace po = boost::program_options;
 
-enum PotentialType
-{
-    Potential_Harmonic,
-    Potential_Anharmonic,
-    Potential_Octic,
-    Potential_MAX_POTENTIAL
 
-};
 
 int main(int argc, const char * argv[]) 
 {
-    // Begin timing.
-    auto start = chrono::system_clock::now();
-
-    // Tell user that simulation is starting.
-    cout << "Setting up Simulation...\n";
+    // Start Timing.
+	Timer timer;
     
     /*************************************************************************************************************************
     ****************************************************** Input Parameters **************************************************
@@ -69,7 +67,7 @@ int main(int argc, const char * argv[])
     int mInterval;
 
     // Choice of potential.
-    PotentialType potentialChoice;
+    HMCInput::PotentialType potentialChoice;
 
     // Histogram parameters.
     int    numBins;
@@ -78,6 +76,9 @@ int main(int argc, const char * argv[])
 
     // Tempering parameter sqrt(alpha)
     double temperingParameter;
+
+    // Correlation range calculator.
+    int correlationRange;
 
     // Set up optional command line argument.
     po::options_description desc("Options for hmc oscillator program");
@@ -100,6 +101,7 @@ int main(int argc, const char * argv[])
         ("histogram-max-value,R", po::value<double>(&histMaxValue)->default_value(4.0), "Maximum value in histogram range")
         ("histogram-min-value,r", po::value<double>(&histMinValue)->default_value(-4.0), "Minimum value in histogram range")
         ("tempering-parameter,T", po::value<double>(&temperingParameter)->default_value(1.0), "sqrt(alpha) that is the tempering parameter")
+        ("correlation-range", po::value<int>(&correlationRange)->default_value(10), "range to calculate the correlation function for.")
         ("anharmonic", "use alternative potential")
         ("octic", "use octic potential")
         ("help,h", "produce help message");
@@ -119,82 +121,70 @@ int main(int argc, const char * argv[])
     // If the user specifies alternate potential need to let the program know.
     if(vm.count("anharmonic")) 
     {
-        potentialChoice = Potential_Anharmonic;
+        potentialChoice = HMCInput::Potential_Anharmonic;
     }
     else if(vm.count("octic"))
     {
-        potentialChoice = Potential_Octic;
+        potentialChoice = HMCInput::Potential_Octic;
     }
 
     else
     {
-        potentialChoice = Potential_Harmonic;
+        potentialChoice = HMCInput::Potential_Harmonic;
     }
 
-    // Tell user their input values to check they are correct.
-    int outputColumnWidth = 30;
-    cout << "Input Parameters..." << '\n';
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "Lattice Size: " << right << latticeSize << '\n';
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "Lattice Spacing: " << right << latticeSpacing << '\n';
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "LeapFrog Step Size: " << right << lfStepSize << '\n';
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "#LeapFrog Steps " << right << lfStepCount<< '\n';
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "#Configurations: " << right << configCount << '\n';
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "Burn Period: " << right << burnPeriod << '\n';
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "Measurement Interval: " << right << mInterval << '\n';
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "Mass: " << right << mass << '\n';
-    // Depending on which potential was used report correct parameters.
-    switch(potentialChoice)
+    // Construct an input object and print the values to the command line.
+    HMCInput inputParameters
     {
-        case Potential_Harmonic: 
-            cout << setw(outputColumnWidth) << setfill(' ') << left << "V(x): " << right << "0.5.mu^2.x + lambda.x^4" << '\n';
-            cout << setw(outputColumnWidth) << setfill(' ') << left << "mu^2: " << right << muSquared << '\n';
-            cout << setw(outputColumnWidth) << setfill(' ') << left << "Lambda: " << right << lambda << '\n' << '\n';
-            break;
+		latticeSize,
+     	latticeSpacing,
+     	mass,
+     	muSquared,
+     	lambda,
+     	fSquared,
+        lfStepCount,
+     	lfStepSize,
+	    configCount,
+	    burnPeriod,
+	    mInterval,
+		potentialChoice,
+		numBins,
+     	histMaxValue,
+     	histMinValue,
+     	temperingParameter,
+     	correlationRange
+    };
 
-        case Potential_Anharmonic: 
-            cout << setw(outputColumnWidth) << setfill(' ') << left << "V(x): " << right << "lambda.(x^2-f^2)^2" << '\n';
-            cout << setw(outputColumnWidth) << setfill(' ') << left << "f^2: " << right << fSquared << '\n';
-            cout << setw(outputColumnWidth) << setfill(' ') << left << "Lambda: " << right << lambda << '\n' << '\n';
-            break;
-
-        case Potential_Octic: 
-            cout << setw(outputColumnWidth) << setfill(' ') << left << "V(x): " << right << "lambda.(x^2-f^2)^4" << '\n';
-            cout << setw(outputColumnWidth) << setfill(' ') << left << "f^2: " << right << fSquared << '\n';
-            cout << setw(outputColumnWidth) << setfill(' ') << left << "Lambda: " << right << lambda << '\n' << '\n';
-            break;
-        default:
-            cout << "No potential selected, exiting program...";
-            return 1;
-    }
+    cout << inputParameters << '\n';
+    int outputColumnWidth = 10;
 
     /*************************************************************************************************************************
-    ****************************************************** Create Output Directory ************************************************
+    ****************************************************** Output Set Up *****************************************************
     **************************************************************************************************************************/
 
-    // Create string from the time the program started.
-    time_t startTime = chrono::system_clock::to_time_t(start);
-    string outputName = ctime(&startTime);
+	// Create string which holds unique time/date stamp.
+	string outputName(makeDirectory());
 
-    // Strip out and replace difficult characters.
-    std::transform(outputName.begin(), outputName.end(), outputName.begin(), [](char ch) {return ch == ' ' ? '_' : ch;});
-    std::transform(outputName.begin(), outputName.end(), outputName.begin(), [](char ch) {return ch == ':' ? '-' : ch;});
-    outputName.erase(std::remove(outputName.begin(), outputName.end(), '\n'), outputName.end());
+	// Create output file to hold the input parameters.
+	ofstream inputParametersOutput(outputName + "/input.txt");
 
-    // Create directory path from the string.
-    boost::filesystem::path outPath = outputName;
-    
-    // If user calls program more than once a second so that directories will be overwritten append an index.
-    for(int i = 2; boost::filesystem::exists(outPath) && i < 100; ++i)
-    {
-        stringstream ss;
-        ss << outPath << "(" << i << ")";
-        outPath = ss.str();
-    }
+	// Create output file to hold numerical values calculated during the simulation.
+	ofstream resultsOutput(outputName + "/results.txt");
 
-    // Create the directory for output.
-    boost::filesystem::create_directory(outPath);
+	// Create output file to hold the wave function.
+    ofstream wavefunctionOutput(outputName+"/wavefunction.dat");
+
+    // Create output file to hold the correlation function data.
+    ofstream correlationOutput(outputName+"/correlation.dat");
+
+    // Create output file to hold the final configuration so it can be resused in future simulations.
+    ofstream finalConfigOutput(outputName+"/finalConfiguration.dat");
+
+    // Create output file for the mean position on each configuration.
+    ofstream positionOutput(outputName+"/position.dat");
+
     
-    
+ 
     // Create potentials for each type.
     HarmonicPotential       harmonicPotential(muSquared, lambda);
     AnharmonicPotential     anharmonicPotential(lambda, fSquared);
@@ -203,15 +193,15 @@ int main(int argc, const char * argv[])
 
     switch(potentialChoice)
     {
-        case Potential_Harmonic: 
+        case HMCInput::Potential_Harmonic: 
             potential = &harmonicPotential;
             break;
 
-        case Potential_Anharmonic: 
+        case HMCInput::Potential_Anharmonic: 
             potential = &anharmonicPotential;
             break;
 
-        case Potential_Octic: 
+        case HMCInput::Potential_Octic: 
             potential = &octicPotential;
             break;
 
@@ -220,50 +210,44 @@ int main(int argc, const char * argv[])
             return 1;
     }
 
-
-    //Create output file for position.
-    ofstream positionOutput(outputName+"/position.dat");
-
     /*************************************************************************************************************************
     *************************************************** Set up Measurements **************************************************
     **************************************************************************************************************************/
-    int    mCount                   = configCount/mInterval;         
+
+    int    mCount                   = configCount/mInterval;    
+
     int    acceptance               = 0;
+    
+    DataArray positionData;
+    positionData.reserve(mCount);
 
-    double tunnelRate               = 0;
+    DataArray positionSquaredData;
+    positionSquaredData.reserve(mCount);
 
-    double averageX                 = 0.0;
-    double averageX_Squared         = 0.0;
+    DataArray positionFourthData;
+    positionFourthData.reserve(mCount);
 
-    double averageXSquared          = 0.0;
-    double averageXSquared_Squared  = 0.0;
+    DataArray actionData;
+    actionData.reserve(mCount);
 
-    double averageXFourth           = 0.0;
-    double averageXFourth_Squared   = 0.0;
+    DataArray keData;
+    keData.reserve(mCount);
 
-    double averagePE                = 0.0;
-    double averagePE_Squared        = 0.0;
+    DataArray dhData;
+    dhData.reserve(mCount);
 
-    double averageKE                = 0.0;
-    double averageKE_Squared        = 0.0;
+    DataArray expdhData;
+    expdhData.reserve(mCount);
 
+    DataArray gsEnergyData;
+    gsEnergyData.reserve(mCount);
+		
 
-    double averageDeltaH            = 0.0;
-    double averageDeltaH_Squared    = 0.0;
-
-    double averageExpDeltaH         = 0.0;
-    double averageExpDeltaH_Squared = 0.0;
-
-    double averageGSEnergy          = 0.0;
-    double averageGSEnergy_Squared  = 0.0;
-
-    int    correlationRange         = 10;
     
     
     vector<double> correlation(correlationRange,0);
     vector<double> correlationSquared(correlationRange,0);
 
-    //Histogram positionHistogram2(histMinValue, histMaxValue, numBins);
 
     // Set up arrays to hold the wavefunction calculated on each measured configuration.
     vector<double> wavefunction(numBins,0.0);
@@ -280,25 +264,31 @@ int main(int argc, const char * argv[])
     unsigned int seed = static_cast<unsigned int>(chrono::system_clock::now().time_since_epoch().count());
     default_random_engine generator(seed);
 
+    
     normal_distribution<double>       momentumDistribution(0.0, 1.0);
     uniform_real_distribution<double> positionDistribution(-1.0, 1.0);
     uniform_real_distribution<double> acceptanceDistribution(0.0, 1.0);
+	
 
     /*************************************************************************************************************************
     *************************************************** Prepare Lattice ******************************************************
     **************************************************************************************************************************/
 
     // Create all vectors before iterations begin so they are not created on each iteration.
+    
     vector<double> configuration;
     vector<double> originalConfiguration;
     vector<double> originalMomentum;
     vector<double> momentum;
+    
     for (int i = 0; i < latticeSize; ++i)
     {
         configuration.push_back(positionDistribution(generator));
         momentum.push_back(momentumDistribution(generator));
     }
+	
 
+	HMCLattice1D lattice(latticeSize, latticeSpacing, mass, potential);
 
 
     /*************************************************************************************************************************
@@ -312,7 +302,7 @@ int main(int argc, const char * argv[])
     {
         cout << progressBar;
         progressBar.increment();
-
+        
         // Randomize the momenta on the sites.
         for(auto& p : momentum)
         {
@@ -324,7 +314,7 @@ int main(int argc, const char * argv[])
         originalMomentum      = momentum;
         
         // Do the leap frog update.
-        leapFrog(configuration, momentum, latticeSpacing, lfStepCount, lfStepSize, potential, mass);
+        leapFrogTempering(configuration, momentum, latticeSpacing, lfStepCount, lfStepSize, potential, mass, temperingParameter);
         
         // Calculate the Hamiltonian for the whole configuration before and after the update.
         double hamiltonianBefore = oscillatorHamiltonian(originalMomentum, originalConfiguration, latticeSpacing, mass, potential);
@@ -333,8 +323,8 @@ int main(int argc, const char * argv[])
         // Calculate the change in the Hamiltonian over the update.
         double deltaH = hamiltonianAfter - hamiltonianBefore;
         
-        // Do the metropolis update - if the update fails we need to restore the original configuration.
-        if(exp(-deltaH) < acceptanceDistribution(generator))
+        // Do the metropolis update - if its sucessful and we are out of the burn period record it.
+        if(!metropolisUpdate(hamiltonianBefore, hamiltonianAfter, generator))
         {
             configuration = originalConfiguration;
             momentum      = originalMomentum;
@@ -345,11 +335,19 @@ int main(int argc, const char * argv[])
         {
             ++acceptance;
         }
-
-        
+		
+        /*
+		if(lattice.leapFrogUpdate(generator, lfStepCount, lfStepSize, temperingParameter));
+		{
+			++acceptance;
+		}
+        */
         // Measurements are made at the interval specified by the user once we have exceeded the burn period. 
         if(0 == config%mInterval && config >= burnPeriod)
         {   
+        	//positionData.push_back(lattice.meanX());
+        	//positionSquaredData.push_back(lattice.meanX());
+        	
             // Quantities of interest.
             double meanX         = 0.0;
             double meanXSquared  = 0.0;
@@ -387,54 +385,45 @@ int main(int argc, const char * argv[])
             }
 
             meanX        /= latticeSize;
-            meanXSquared /= latticeSize;
-            meanXFourth  /= latticeSize;
+            positionData.push_back(meanX);
 
-            averageX                 += meanX;
-            averageX_Squared         += meanX * meanX;
+            meanXSquared /= latticeSize;
+            positionSquaredData.push_back(meanXSquared);
+
+            meanXFourth  /= latticeSize;
+            positionFourthData.push_back(meanXFourth);
 
             // Quicker to output position values to file on each iteration rather than storing them and outputting them later.s
             positionOutput << (config-burnPeriod)/mInterval << ' ' << meanX << '\n';
 
-            averageXSquared          += meanXSquared;
-            averageXSquared_Squared  += meanXSquared * meanXSquared;
-
-            averageXFourth           += meanXFourth;
-            averageXFourth_Squared   += meanXFourth * meanXFourth;
-
-            meanPE                    = latticePotentialEnergy(configuration, latticeSpacing, mass, potential)/latticeSize;
-            averagePE                += meanPE;
-            averagePE_Squared        += meanPE*meanPE;
+            meanPE                    = latticeAction(configuration, latticeSpacing, mass, potential)/latticeSize;            
+			actionData.push_back(meanPE);
 
             meanKE                    = kineticEnergy(momentum)/latticeSize;
-            averageKE                += meanKE;
-            averageKE_Squared        += meanKE * meanKE;
+            keData.push_back(meanKE);
 
             meanDeltaH                = deltaH;
-            averageDeltaH            += meanDeltaH;
-            averageDeltaH_Squared    += deltaH*deltaH;
+            dhData.push_back(deltaH);
 
             meanExpdeltaH             = exp(-deltaH);
-            averageExpDeltaH         += meanExpdeltaH;
-            averageExpDeltaH_Squared += meanExpdeltaH*meanExpdeltaH;
+            expdhData.push_back(meanExpdeltaH);
 
             switch(potentialChoice)
             {
-            case Potential_Harmonic: 
+            case HMCInput::Potential_Harmonic: 
                 meanGSEnergy = muSquared * meanXSquared + 3.0 * lambda * meanXFourth;
                 break;
 
-            case Potential_Anharmonic: 
+            case HMCInput::Potential_Anharmonic: 
                 meanGSEnergy = -4.0 * fSquared * lambda * meanXSquared + 3.0 * lambda * meanXFourth + lambda * fSquared * fSquared;
                 break;
 
-            case Potential_Octic: 
+            case HMCInput::Potential_Octic: 
                 meanGSEnergy = muSquared * meanXSquared + 3.0 * lambda * meanXFourth;
                 break;
             }
 
-            averageGSEnergy         += meanGSEnergy;
-            averageGSEnergy_Squared += meanGSEnergy*meanGSEnergy;
+            gsEnergyData.push_back(meanGSEnergy);
 
 
             // Store first n values of the correlation function on the lattice.
@@ -446,11 +435,6 @@ int main(int argc, const char * argv[])
 
             } 
 
-            // If their is a sign switch between two adjacent lattice sites record this as a tunnel.
-            for(int i = 0; i < correlation.size(); ++i)
-            {
-                if(configuration[i]/configuration[(i+1)%configuration.size()] < 0) tunnelRate+= 1.0/configuration.size();
-            }
             
         }
 
@@ -465,31 +449,50 @@ int main(int argc, const char * argv[])
     ***************************************** Calculate Observables **********************************************************
     **************************************************************************************************************************/
 
-    
-    // Average over all measurements.
-    averageX                 /= mCount;
-    averageX_Squared         /= mCount;
-    averageXSquared          /= mCount;
-    averageXSquared_Squared  /= mCount;
-    averageXFourth           /= mCount;
-    averageXFourth_Squared   /= mCount;
-    averagePE                /= mCount;
-    averagePE_Squared        /= mCount;
-    averageKE                /= mCount;
-    averageKE_Squared        /= mCount;
-    averageDeltaH            /= mCount;
-    averageDeltaH_Squared    /= mCount;
-    averageExpDeltaH         /= mCount;
-    averageExpDeltaH_Squared /= mCount;
-    averageGSEnergy          /= mCount;
-    averageGSEnergy_Squared  /= mCount;
-    tunnelRate               /= mCount;
-
     double acceptanceRate = static_cast<double>(acceptance)/(configCount);
-
+    
     // Calculate variance and standard error using the normal formulas.    
     double varianceAcceptance  = (acceptanceRate - acceptanceRate * acceptanceRate) * mCount/(mCount-1);
     double sdAcceptance        = sqrt(varianceAcceptance)/sqrt(mCount);
+	
+    for(int i = 0; i < wavefunction.size(); ++i)
+    {
+        double varianceWavefunction =   (wavefunctionSquared[i] - wavefunction[i] * wavefunction[i]) * mCount/(mCount-1);
+        wavefunctionError[i]        = sqrt(varianceWavefunction)/sqrt(mCount);
+    }
+    
+    vector<double> correlationError(correlation.size(),0);
+    for(int i = 1; i < correlationError.size();++i)
+    {
+        double varianceCorrelation    = (correlationSquared[i] - correlation[i]*correlation[i]) * mCount/(mCount-1);
+        correlationError[i]           = sqrt(varianceCorrelation)/sqrt(mCount);
+    }
+
+       
+    double position = positionData.mean();
+    double positionError = positionData.error();
+
+    double positionSquared = positionSquaredData.mean();
+    double positionSquaredError = positionSquaredData.error();
+
+    double positionFourth = positionFourthData.mean();
+    double positionFourthError = positionFourthData.error();
+
+    double kineticEnergy	   = keData.mean();
+    double kineticEnergyError  = keData.error();
+
+    double action 			   = actionData.mean();
+    double actionError         = actionData.error();
+
+    double dh                  = dhData.mean();
+    double dhError             = dhData.error();
+
+    double expdh               = expdhData.mean();
+    double expdhError          = expdhData.error();
+
+    double gsEnergy            = gsEnergyData.mean();
+    double gsEnergyError        = gsEnergyData.error();
+    /*
 
     double varianceX           = (averageX_Squared - averageX * averageX) * mCount/(mCount-1);;
     double sdX                 = sqrt(varianceX)/sqrt(mCount);
@@ -514,32 +517,8 @@ int main(int argc, const char * argv[])
 
     double varianceGSEnergy    = (averageGSEnergy_Squared - averageGSEnergy * averageGSEnergy) * mCount/(mCount-1);
     double sdGSEnergy          = sqrt(varianceGSEnergy)/sqrt(mCount);
-    
-    for(int i = 0; i < wavefunction.size(); ++i)
-    {
-        double varianceWavefunction =   (wavefunctionSquared[i] - wavefunction[i] * wavefunction[i]) * mCount/(mCount-1);
-        wavefunctionError[i]        = sqrt(varianceWavefunction)/sqrt(mCount);
-    }
-    
-    vector<double> correlationError(correlation.size(),0);
-    for(int i = 1; i < correlationError.size();++i)
-    {
-        double varianceCorrelation    = (correlationSquared[i] - correlation[i]*correlation[i]) * mCount/(mCount-1);
-        correlationError[i]           = sqrt(varianceCorrelation)/sqrt(mCount);
-    }
+	*/
 
-    vector<double> energyGap(correlation.size(),0);
-    vector<double> deltaT(correlation.size(),0);
-    for(int i = 0; i < correlation.size(); ++i)
-    {
-        if(correlation[i] > 0)
-        {
-            energyGap[i] = -1.0* log(correlation[i]);
-            deltaT[i] = latticeSpacing * i;
-        }
-    }
-
-    double averageDeltaE   = slope(energyGap,deltaT);
 
     /*
     
@@ -561,31 +540,62 @@ int main(int argc, const char * argv[])
     */
 
     /**********************************************************************************************************************
-    ************************** OUTPUT TO TERMINAL *************************************************************************
-    **********************************************************************************************************************/
-    cout << "Output...\n";
-
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "Acceptance Rate: " << right << acceptanceRate*100 << " +/- " << sdAcceptance*100  << endl;
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "<S>:" << right << averagePE << " +/- " << sdPE << endl;
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "<T>:" << right << averageKE << " +/- " << sdKE << endl;
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "<deltaH>:" << right << averageDeltaH << " +/- " << sdDeltaH << endl;
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "<exp(-deltaH)>:" << right << averageExpDeltaH << " +/- " << sdExpDeltaH << endl;
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "<X>: " << right << averageX << " +/- " << sdX << endl;
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "<X^2>:" << right << averageXSquared << " +/- " << sdXSquared << endl;
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "<x^4>:" << right << averageXFourth << " +/- " << sdXFourth << endl; 
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "E_0:" << right  << averageGSEnergy << " +/- " << sdGSEnergy << endl;
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "E_1 - E_0:" << right << averageDeltaE << " +/- " << ' ' << endl;
-    if(potentialChoice == Potential_Anharmonic || potentialChoice == Potential_Octic || lambda != 0)
+    ************************************** Output to command line ********************************************************
+    **********************************************************************************************************************/    
+    // Construct an object to hold the results.
+    /*
+    HMCOutput results
     {
-    cout << setw(outputColumnWidth) << setfill(' ') << left << "Tunnel Rate:" << right << tunnelRate << endl;
-    }
+    	acceptanceRate*100,
+    	sdAcceptance*100,
+    	averagePE,
+    	sdPE,
+    	averageKE,
+    	sdKE,
+    	averageDeltaH,
+    	sdDeltaH,
+    	averageExpDeltaH,
+    	sdExpDeltaH,
+    	averageX,
+    	sdX,
+    	averageXSquared,
+    	sdXSquared,
+    	averageXFourth,
+    	sdXFourth,
+    	averageGSEnergy,
+    	sdGSEnergy
+    };
+    */
+    HMCOutput results
+    {
+    	acceptanceRate*100,
+    	sdAcceptance*100,
+    	action,
+    	actionError,
+    	kineticEnergy,
+    	kineticEnergyError,
+    	dh,
+    	dhError,
+    	expdh,
+    	expdhError,
+    	position,
+    	positionError,
+    	positionSquared,
+    	positionSquaredError,
+    	positionFourth,
+    	positionFourthError,
+    	gsEnergy,
+    	gsEnergyError
+    };
+
+    // Output the results to the commandline 
+
+    cout << results << '\n';
 
     /**********************************************************************************************************************
     ************************************************* File Output *********************************************************
     ***********************************************************************************************************************/
-
-    ofstream wavefunctionOutput(outputName+"/wavefunction.dat");
-    
+       
     //wavefunctionOutput << histMinValue << ' ' << histMaxValue << '\n' <<  (histMaxValue - histMinValue) / numBins << '\n';
     double histSpacing = (histMaxValue - histMinValue) / numBins;
     for(int i = 0;i < wavefunction.size();++i)
@@ -593,25 +603,28 @@ int main(int argc, const char * argv[])
         wavefunctionOutput << (histMinValue + histSpacing/2) + i * histSpacing << ' ' << wavefunction[i] << ' ' << wavefunctionError[i] << '\n';
     }
     
-    
-    ofstream correlationOutput(outputName+"/correlation.dat");
     for(int i = 0; i < correlation.size(); ++i)
     {
         correlationOutput << i << " " << correlation[i] << ' ' << correlationError[i] << '\n';
     }
 
-    ofstream finalConfigOutput(outputName+"/finalConfiguration.dat");
     for(int i = 0; i <configuration.size();++i)
     {
         finalConfigOutput << i << ' ' << configuration[i] <<'\n';
     }
 
+    // Output the input parameters to their file.
+    inputParametersOutput << inputParameters;
+
+    // Output the numerical results to the file.
+    resultsOutput << results;
+
+
+
     /**********************************************************************************************************************
     ************************************************* End Program *********************************************************
     ***********************************************************************************************************************/    
    cout << "Simulation Complete! Results have been outputed to the directory " << outputName << '\n'; 
-   auto end = chrono::system_clock::now();
-   auto elapsed = chrono::duration_cast<chrono::seconds>(end - start);
-   cout << "Time take to execute (s):   " << elapsed.count() << endl << endl; 
+   cout << "Time take to execute (s):   " << timer.elapsed() << endl << endl; 
    return 0;
 }
