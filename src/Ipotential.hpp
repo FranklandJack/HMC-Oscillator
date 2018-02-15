@@ -16,6 +16,8 @@ public:
     // functor it will return the derivatice of the potential at the displacment
     virtual double operator[](double x) const = 0;
 
+    virtual double groundStateEnergy(double meanXSquared, double meanXFourth) const = 0;
+
 };
 
 #endif

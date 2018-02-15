@@ -2,12 +2,19 @@
 #define makeDirectory_hpp
 
 #include <boost/filesystem.hpp> 
-#include <ctime>
 #include <string>
-#include <chrono>
 #include <sstream>
+#include "getTimeStamp.hpp"
 
-std::string makeDirectory();
+/**
+ *\file
+ *\brief function to create a directory.
+ *\param constant string reference that is the name of the output directory.
+ *\return string representing the name of the directory.
+ *
+ * The function will append integers to directory name if it already exists.
+ */
+std::string makeDirectory(const std::string &name);
 
 #endif /* makeDirectory_hpp */
 

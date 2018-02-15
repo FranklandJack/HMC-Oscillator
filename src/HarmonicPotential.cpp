@@ -11,3 +11,8 @@ double HarmonicPotential::operator[](double x) const
 {
     return m_muSquared * x + 4.0 * m_lambda * x * x * x; 
 }
+
+double HarmonicPotential::groundStateEnergy(double meanXSquared, double meanXFourth) const
+{
+	return m_muSquared * meanXSquared + 3.0 * m_lambda * meanXFourth;
+}

@@ -45,16 +45,6 @@ double DataArray::sum() const
     return sum;
 }
 
-double DataArray::sum(const IDataFunctor &fcn) const
-{
-    double sum = 0;
-    for(const auto& point : m_data)
-    {
-        sum += fcn(point);
-    }
-
-    return sum;
-}
 
 double DataArray::mean() const
 {
@@ -68,17 +58,19 @@ double DataArray::mean() const
     return sum/m_size;
 }
 
-double DataArray::mean(const IDataFunctor &fcn) const
+double DataArray::squareMean() const
 {
-    double sum = 0;
+	double sum = 0;
 
     for(const auto& point : m_data)
     {
-        sum += fcn(point);
+        sum += point*point;
     }
 
     return sum/m_size;
+
 }
+
 
 double DataArray::error() const
 {
@@ -96,157 +88,8 @@ double DataArray::error() const
 
 }
 
-double DataArray::error(const IDataFunctor &fcn) const
-{
-    double sum = 0;
-
-    for(const auto& point : m_data)
-    {
-        sum += fcn(point)*fcn(point);
-    }
-
-    double meanSquared = sum / m_size;
-    double mean        = (*this).mean(fcn);
-
-    return sqrt((meanSquared - mean * mean) / (m_size - 1));
-
-}
-
-Estimate DataArray::estimate() const
-{
-    double error = (*this).error();
-    double mean  = (*this).mean();
-
-    return Estimate(mean,error);
-}
-
-Estimate DataArray::estimate(const IDataFunctor &fcn) const
-{
-    double error = (*this).error(fcn);
-    double mean  = (*this).mean(fcn);
-
-    return Estimate(mean,error);
-}
 
 
-double DataArray::jackKnifeError() const
-{
-    double sum = 0;
-    double mean = (*this).mean();
-    double total = (*this).sum();
-
-    for(const auto& point : m_data)
-    {
-        double reducedMean = (total-point)/(m_size-1);
-        sum += (reducedMean - mean)*(reducedMean - mean);
-    }
-
-    return sqrt(sum);
-}
-
-double DataArray::jackKnifeError(const IDataFunctor &fcn) const
-{
-    double sum = 0;
-    double mean = (*this).mean(fcn);
-    double total = (*this).sum(fcn);
-
-    for(const auto& point : m_data)
-    {
-        double reducedMean = (total-fcn(point))/(m_size-1);
-        sum += (reducedMean - mean)*(reducedMean - mean);
-    }
-
-    return sqrt(sum);
-}
-
-
-Estimate DataArray::jackKnifeEstimate() const
-{
-    double mean = (*this).mean();
-    double error = (*this).jackKnifeError();
-
-    return Estimate(mean,error);
-}
-
-Estimate DataArray::jackKnifeEstimate(const IDataFunctor& fcn) const
-{
-    double mean = (*this).mean(fcn);
-    double error = (*this).jackKnifeError(fcn);
-
-    return Estimate(mean,error);
-}
-
-double DataArray::bootstrapError(std::default_random_engine& generator, int totalIterations) const
-{
-    static std::uniform_int_distribution<int> distribution;
-
-    double bsMean       = 0;
-    double bsMeanSquare = 0;
-    for(int iteration = 0; iteration < totalIterations; ++iteration)
-    {
-        double tempMean        = 0;
-        double tempMeanSquared = 0;
-        for(int i = 0; i < m_size; ++i)
-        {
-            double sample = m_data[distribution(generator)];
-            tempMean += sample;
-            tempMeanSquared += sample*sample;
-
-        }
-
-        tempMean /= m_size; 
-        bsMean += tempMean;
-
-        tempMeanSquared /= m_size;
-        bsMeanSquare += tempMeanSquared;
-    }
-
-    return sqrt(bsMeanSquare-bsMean*bsMean);
-}
-
-double DataArray::bootstrapError(std::default_random_engine &generator, int totalIterations, const IDataFunctor &fcn) const
-{
-    static std::uniform_int_distribution<int> distribution;
-
-    double bsMean       = 0;
-    double bsMeanSquare = 0;
-    for(int iteration = 0; iteration < totalIterations; ++iteration)
-    {
-        double tempMean        = 0;
-        double tempMeanSquared = 0;
-        for(int i = 0; i < m_size; ++i)
-        {
-            double sample = m_data[distribution(generator)];
-            tempMean += fcn(sample);
-            tempMeanSquared += fcn(sample)*fcn(sample);
-
-        }
-
-        tempMean /= m_size; 
-        bsMean += tempMean;
-
-        tempMeanSquared /= m_size;
-        bsMeanSquare += tempMeanSquared;
-    }
-
-    return sqrt(bsMeanSquare-bsMean*bsMean);
-}
-
-
-Estimate DataArray::bootstrapEstimate(std::default_random_engine &generator, int totalIterations) const
-{
-    double mean = (*this).mean();
-    double error = (*this).bootstrapError(generator,totalIterations);
-    return Estimate(mean,error);
-}
-
-Estimate DataArray::bootstrapEstimate(std::default_random_engine &generator, int totalIterations, const IDataFunctor &fcn) const
-{
-    double mean = (*this).mean(fcn);
-    double error = (*this).bootstrapError(generator,totalIterations,fcn);
-    return Estimate(mean,error);
-
-}
 
 std::ostream& operator<<(std::ostream& out, const DataArray& data)
 {
@@ -292,4 +135,9 @@ std::vector<double> DataArray::autoCorrelation(int t1, int t2) const
     }
 
     return autoCorrelationData;
+}
+
+int DataArray::getSize() const
+{
+	return m_size;
 }

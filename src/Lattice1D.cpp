@@ -7,7 +7,23 @@ Lattice1D::Lattice1D(int size, double spacing, double mass, Ipotential *potentia
 																		 m_data(size,0.0),
 																		 m_potential(potential){}
 
-void Lattice1D::initialise(std::default_random_engine &generator, int min, int max)
+Lattice1D::Lattice1D(int size, double spacing, double mass, Ipotential *potential, 
+					std::default_random_engine &generator, double min, double max) :
+																		 m_size(size), 
+																		 m_spacing(spacing), 
+																		 m_mass(mass),  
+																		 m_potential(potential)
+{
+	std::uniform_real_distribution<double> initialDistribution(min, max);
+	m_data.reserve(m_size);
+	for(int i = 0; i < m_size; ++i)
+	{
+		m_data.push_back(initialDistribution(generator));
+	}
+
+}
+
+void Lattice1D::initialise(std::default_random_engine &generator, double min, double max)
 {
 	std::uniform_real_distribution<double> initialDistribution(min, max);
 	for(auto& x : m_data)
@@ -31,14 +47,19 @@ std::vector<double> Lattice1D::getData() const
 	return m_data;
 }
 
+double Lattice1D::getMass() const
+{
+	return m_mass;
+}
+
 double& Lattice1D::operator[](int index)
 {
-	return m_data[index%m_size];
+	return m_data[(index+m_size)%m_size];
 }
 
 const double& Lattice1D::operator[](int index) const
 {
-	return m_data[index%m_size];
+	return m_data[(index+m_size)%m_size];
 }
 
 std::ostream& operator<<(std::ostream& out, const Lattice1D &lattice)
@@ -108,5 +129,16 @@ double Lattice1D::meanXSquared() const
 
 	return sum/m_size;
 
+}
+
+double Lattice1D::meanXFourth() const
+{
+	double sum = 0;
+	for(const auto& x : m_data)
+	{
+		sum += x*x*x*x;
+	}
+
+	return sum/m_size;
 }
 
