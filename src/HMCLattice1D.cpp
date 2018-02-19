@@ -31,28 +31,21 @@ double HMCLattice1D::hamiltonian() const
 
 void HMCLattice1D::leapFrog(int lfStepCount, double lfStepSize, double alpha)
 {   
+    // Since there are possibly an odd number of time-steps we divide the trajectory into two halves.
     for(int n = 0; n < lfStepCount/2; ++n)
     {
 
-        // Intial half step in m_momenta.
-        // First lattice site has special neighbour conditions. 
-
-        // For tempering multiple each momenta by sqrt(alpha) before first half step.
+        // For tempering multiply each momenta by sqrt(alpha) before first half step.
         for(auto& p : m_momenta)
         {
-            p *= alpha;
+            p *= sqrt(alpha);
         }
-        m_momenta[0] = m_momenta[0] - ((m_mass/m_spacing) * (2 * m_data[0] - m_data[1] - m_data[m_size - 1] ) + m_spacing * (*m_potential)[m_data[0]]) * (lfStepSize/2.0);
 
-        // All remaining sites except last have normal neighbours.
-        for(int i = 1; i <= m_size - 2; ++i)
+        // Can use overloaded access operator to insure periodic boundary conditions are applied.
+        for(int i = 0; i < m_size; ++i)
         {
-            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * m_data[i] - m_data[i+1] - m_data[i-1] ) + m_spacing * (*m_potential)[m_data[i]]) * (lfStepSize/2.0);
+            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * (*this)[i] - (*this)[i+1] - (*this)[i-1] ) + m_spacing * (*m_potential)[(*this)[i]]) * (lfStepSize/2.0);
         }
-
-        // Final site has special neighbour conditions.
-        m_momenta[m_size-1] = m_momenta[m_size-1] - ((m_mass/m_spacing) * (2 * m_data[m_size-1] - m_data[0] - m_data[m_size-2] ) + m_spacing * (*m_potential)[m_data[m_size-1]]) * (lfStepSize/2.0);
-
 
         // Full step in position. 
         for(int i = 0; i < m_size; ++i)
@@ -60,97 +53,72 @@ void HMCLattice1D::leapFrog(int lfStepCount, double lfStepSize, double alpha)
             m_data[i] = m_data[i] + lfStepSize * m_momenta[i];
         }
 
-        // half step in m_momenta.
-        // First lattice site has special neighbour conditions. 
-        m_momenta[0] = m_momenta[0] - ((m_mass/m_spacing) * (2 * m_data[0] - m_data[1] - m_data[m_size - 1] ) + m_spacing * (*m_potential)[m_data[0]]) * (lfStepSize/2.0);
-
-        // All remaining sites except last have normal neighbours.
-        for(int i = 1; i <= m_size - 2; ++i)
+        // Second half step in momentum.
+        // Can use overloaded access operator to insure periodic boundary conditions are applied.
+        for(int i = 0; i < m_size; ++i)
         {
-            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * m_data[i] - m_data[i+1] - m_data[i-1] ) + m_spacing * (*m_potential)[m_data[i]]) * (lfStepSize/2.0);
+            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * (*this)[i] - (*this)[i+1] - (*this)[i-1] ) + m_spacing * (*m_potential)[(*this)[i]]) * (lfStepSize/2.0);
         }
 
-        // Final site has special neighbour conditions.
-        m_momenta[m_size-1] = m_momenta[m_size-1] - ((m_mass/m_spacing) * (2 * m_data[m_size-1] - m_data[0] - m_data[m_size-2] ) + m_spacing * (*m_potential)[m_data[m_size-1]]) * (lfStepSize/2.0);
-
+        // For tempering we multiply the momenta by sqrt(alpha) after the second half step in momentum.
         for(auto& p : m_momenta)
         {
-            p *= alpha;
-        }
-
-
+            p *= sqrt(alpha);
+        }  
     }
 
+    // If there are an odd number of steps then to temper we multiply before the first momentum half step and 
+    // divide after the second half step.
     if(0 != lfStepCount%2)
     {
-        // Intial half step in m_momenta.
-        // First lattice site has special neighbour conditions. 
-
         // For tempering multiple each momenta by sqrt(alpha) before first half step.
         for(auto& p : m_momenta)
         {
-            p *= alpha;
+            p *= sqrt(alpha);
         }
-        m_momenta[0] = m_momenta[0] - ((m_mass/m_spacing) * (2 * m_data[0] - m_data[1] - m_data[m_size - 1] ) + m_spacing * (*m_potential)[m_data[0]]) * (lfStepSize/2.0);
 
-        // All remaining sites except last have normal neighbours.
-        for(int i = 1; i <= m_size - 2; ++i)
+        // First half step in momentum.
+        // Can use overloaded access operator to insure periodic boundary conditions are applied.
+        for(int i = 0; i < m_size; ++i)
         {
-            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * m_data[i] - m_data[i+1] - m_data[i-1] ) + m_spacing * (*m_potential)[m_data[i]]) * (lfStepSize/2.0);
+            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * (*this)[i] - (*this)[i+1] - (*this)[i-1] ) + m_spacing * (*m_potential)[(*this)[i]]) * (lfStepSize/2.0);
         }
-
-        // Final site has special neighbour conditions.
-        m_momenta[m_size-1] = m_momenta[m_size-1] - ((m_mass/m_spacing) * (2 * m_data[m_size-1] - m_data[0] - m_data[m_size-2] ) + m_spacing * (*m_potential)[m_data[m_size-1]]) * (lfStepSize/2.0);
-
-
+    
         // Full step in position. 
         for(int i = 0; i < m_size; ++i)
         {
             m_data[i] = m_data[i] + lfStepSize * m_momenta[i];
         }
-
-        // half step in m_momenta.
-        // First lattice site has special neighbour conditions. 
-        m_momenta[0] = m_momenta[0] - ((m_mass/m_spacing) * (2 * m_data[0] - m_data[1] - m_data[m_size - 1] ) + m_spacing * (*m_potential)[m_data[0]]) * (lfStepSize/2.0);
-
-        // All remaining sites except last have normal neighbours.
-        for(int i = 1; i <= m_size - 2; ++i)
+        // Second half step in momentum.
+        // Can use overloaded access operator to insure periodic boundary conditions are applied.
+        for(int i = 0; i < m_size; ++i)
         {
-            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * m_data[i] - m_data[i+1] - m_data[i-1] ) + m_spacing * (*m_potential)[m_data[i]]) * (lfStepSize/2.0);
+            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * (*this)[i] - (*this)[i+1] - (*this)[i-1] ) + m_spacing * (*m_potential)[(*this)[i]]) * (lfStepSize/2.0);
         }
 
-        // Final site has special neighbour conditions.
-        m_momenta[m_size-1] = m_momenta[m_size-1] - ((m_mass/m_spacing) * (2 * m_data[m_size-1] - m_data[0] - m_data[m_size-2] ) + m_spacing * (*m_potential)[m_data[m_size-1]]) * (lfStepSize/2.0);
-
+        // After second half step in momentum we divide by the sqrt(alpha) to temper.
         for(auto& p : m_momenta)
         {
-            p /= alpha;
+            p /= sqrt(alpha);
         }
 
     }
 
     for(int n = 0; n < lfStepCount/2; ++n)
     {
-
-        // Intial half step in m_momenta.
-        // First lattice site has special neighbour conditions. 
-
-        // For tempering multiple each momenta by sqrt(alpha) before first half step.
+        // For tempering divide each momenta by sqrt(alpha) before first half step.
         for(auto& p : m_momenta)
         {
-            p /= alpha;
+            p /= sqrt(alpha);
         }
-        m_momenta[0] = m_momenta[0] - ((m_mass/m_spacing) * (2 * m_data[0] - m_data[1] - m_data[m_size - 1] ) + m_spacing * (*m_potential)[m_data[0]]) * (lfStepSize/2.0);
 
-        // All remaining sites except last have normal neighbours.
-        for(int i = 1; i <= m_size - 2; ++i)
+        // First half step in momentum.
+        // Can use overloaded access operator to insure periodic boundary conditions are applied.
+        for(int i = 0; i < m_size; ++i)
         {
-            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * m_data[i] - m_data[i+1] - m_data[i-1] ) + m_spacing * (*m_potential)[m_data[i]]) * (lfStepSize/2.0);
+            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * (*this)[i] - (*this)[i+1] - (*this)[i-1] ) + m_spacing * (*m_potential)[(*this)[i]]) * (lfStepSize/2.0);
         }
-
-        // Final site has special neighbour conditions.
-        m_momenta[m_size-1] = m_momenta[m_size-1] - ((m_mass/m_spacing) * (2 * m_data[m_size-1] - m_data[0] - m_data[m_size-2] ) + m_spacing * (*m_potential)[m_data[m_size-1]]) * (lfStepSize/2.0);
-
+        
 
         // Full step in position. 
         for(int i = 0; i < m_size; ++i)
@@ -158,68 +126,26 @@ void HMCLattice1D::leapFrog(int lfStepCount, double lfStepSize, double alpha)
             m_data[i] = m_data[i] + lfStepSize * m_momenta[i];
         }
 
-        // half step in m_momenta.
-        // First lattice site has special neighbour conditions. 
-        m_momenta[0] = m_momenta[0] - ((m_mass/m_spacing) * (2 * m_data[0] - m_data[1] - m_data[m_size - 1] ) + m_spacing * (*m_potential)[m_data[0]]) * (lfStepSize/2.0);
-
-        // All remaining sites except last have normal neighbours.
-        for(int i = 1; i <= m_size - 2; ++i)
+        // Final step in momenta.
+        // Can use overloaded access operator to insure periodic boundary conditions are applied.
+        for(int i = 0; i < m_size; ++i)
         {
-            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * m_data[i] - m_data[i+1] - m_data[i-1] ) + m_spacing * (*m_potential)[m_data[i]]) * (lfStepSize/2.0);
+            m_momenta[i] = m_momenta[i] - ((m_mass/m_spacing) * (2 * (*this)[i] - (*this)[i+1] - (*this)[i-1] ) + m_spacing * (*m_potential)[(*this)[i]]) * (lfStepSize/2.0);
         }
+        
 
-        // Final site has special neighbour conditions.
-        m_momenta[m_size-1] = m_momenta[m_size-1] - ((m_mass/m_spacing) * (2 * m_data[m_size-1] - m_data[0] - m_data[m_size-2] ) + m_spacing * (*m_potential)[m_data[m_size-1]]) * (lfStepSize/2.0);
-
+        // To temper we divide by sqrt(alpha) after second half step in momentum.
         for(auto& p : m_momenta)
         {
-            p /= alpha;
+            p /= sqrt(alpha);
         }
 
+    }   
 
-    }
-
+    // Negate all momenta so the dynamics is reversible.
     for(auto& p : m_momenta)
     {
         p = -p;
-    }
-    
+    }      
         
-        
-}
-
-bool HMCLattice1D::leapFrogUpdate(std::default_random_engine& generator, 
-								int lfStepCount, 
-								double lfStepSize, 
-								double alpha)
-{
-	std::vector<double> currentState = m_data;
-	double currentHamiltonian = hamiltonian();
-
-	leapFrog(lfStepCount, lfStepSize, alpha);
-
-	double newHamiltonian = hamiltonian();
-
-	if(metropolisUpdate(currentHamiltonian,newHamiltonian,generator))
-	{
-		return true;
-	}
-
-	else
-	{
-		m_data = currentState;
-		return false;
-	}
-
-
-}
-
-
-void leapFrog(const HMCLattice1D &currentLattice, HMCLattice1D &updatedLattice, int lfStepCount, double lfStepSize, double alpha = 1.0)
-{
-    // Define some local variables to make things cleaner.
-    int latticeSize       = currentLattice.getSize();
-    double latticeSpacing = currentLattice.getSpacing();
-
-    
 }

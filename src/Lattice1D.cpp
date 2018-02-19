@@ -64,9 +64,10 @@ const double& Lattice1D::operator[](int index) const
 
 std::ostream& operator<<(std::ostream& out, const Lattice1D &lattice)
 {
+	int counter = 0;
 	for(const auto& x : lattice.m_data)
 	{
-		out << x << ' ';
+		out << counter++ << ' ' << x << '\n';
 	}
 	return out;
 }

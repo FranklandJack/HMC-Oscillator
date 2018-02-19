@@ -248,10 +248,14 @@ int main(int argc, const char * argv[])
 *************************************************** Prepare Lattice ******************************************************
 **************************************************************************************************************************/
 
+    // Create a lattice that can be updated.
 	HMCLattice1D lattice(latticeSize, latticeSpacing, mass, potential);
-    lattice.initialise(generator);
-    HMCLattice1D currentLattice = lattice;
 
+    // Initialise the lattice with uniformly distributed position coordinates between -1 and +1.
+    lattice.initialise(generator);
+
+    // Create a lattice to represent the current state of the system
+    HMCLattice1D currentLattice = lattice;
 
 /*************************************************************************************************************************
 *************************************************** Do HMC **************************************************************
@@ -459,6 +463,8 @@ int main(int argc, const char * argv[])
 ***********************************************************************************************************************/    
     std::cout << "Simulation Complete! Results have been outputed to the directory " << outputName << '\n'; 
     std::cout << "Time take to execute (s):   " << timer.elapsed() << std::endl << std::endl; 
+
+
 
     return 0;
 }
