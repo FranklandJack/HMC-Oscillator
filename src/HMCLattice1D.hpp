@@ -62,6 +62,8 @@ public:
 
 	void leapFrog(int lfStepCount, double lfStepSize, double alpha = 1.0);
 
+	void leapFrog(int lfStepCount, double lfStepSize, double alpha, std::ostream &hamiltonianOutput);
+
 	bool leapFrogUpdate(std::default_random_engine& generator, int lfStepCount, double lfStepSize, double alpha = 1.0);
 
 	friend void leapFrog(const HMCLattice1D &currentLattice, HMCLattice1D &updatedLattice, int lfStepCount, double lfStepSize, double alpha);

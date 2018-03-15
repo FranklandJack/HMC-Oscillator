@@ -141,3 +141,15 @@ int DataArray::getSize() const
 {
 	return m_size;
 }
+
+double DataArray::integratedAutocorrelationTime(int range) const
+{
+    double sum = 0.0;
+
+    for(int i = 1; i < range; ++i)
+    {
+        sum += autoCorrelation(i);
+    }
+
+    return sum + 0.5;
+}

@@ -23,12 +23,15 @@ public:
 
 	double position;
 	double positionError;
+	double positionIAC;
 
 	double positionSquared;
 	double positionSquaredError;
+	double positionSquaredIAC;
 
 	double positionFourth;
 	double positionFourthError;
+	double positionFourthIAC;
 
 	double gsEnergy;
 	double gsEnergyError;

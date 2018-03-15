@@ -163,6 +163,12 @@ public:
      * according to their position in the vector.
      */
     std::vector<double> autoCorrelation(int t1, int t2) const;
+
+    /**
+     *\brief Function to calculate the integrated autocorrelation time.
+     *\return floating point value representing the integrated autocorrelation time.
+     */
+     double integratedAutocorrelationTime(int range) const;
 };
 
 #endif /* DataArray_hpp */

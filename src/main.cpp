@@ -166,6 +166,24 @@ int main(int argc, const char * argv[])
     // Create output file for the mean position on each configuration.
     std::ofstream positionOutput(outputName+"/position.dat");
 
+    // Create output file for the mean position squared on each configuration.
+    std::ofstream positionSquaredOutput(outputName+"/positionSquared.dat");
+
+    // Create output file for the mean energy gs on each configuration.
+    std::ofstream gsEnergyOutput(outputName+"/gsEnergy.dat");
+
+    // Create output file for the autocorrealtion in position.
+    std::ofstream positionAutoCorrelationOutput(outputName+"/autocorrelationPosition.dat");
+
+    // Create output file for the autocorrelation in position squared.
+    std::ofstream positionSquaredAutoCorrelationOutput(outputName+"/autocorrelationPositionSquared.dat");
+
+    // Create output file for the autocorrelation in position fourth.
+    std::ofstream positionFourthAutoCorrelationOutput(outputName+"/autocorrelationPositionFourth.dat");
+
+    // Create output file for the Hamiltonian on the final leapfrog update so we can see its evolution.
+    std::ofstream hamtilonianEvolutionOutput(outputName+"/hamiltonianEvolution.dat");
+
     
  
     // Create potentials for each type.
@@ -254,6 +272,17 @@ int main(int argc, const char * argv[])
     // Initialise the lattice with uniformly distributed position coordinates between -1 and +1.
     lattice.initialise(generator);
 
+    // TEST TO SEE WHAT HAPPENS IF WE INITIALISE LATTICE IN ONE MINIMA.
+    /*
+    if(vm.count("anharmonic"))
+    {
+        for(int i = 0; i < lattice.getSize(); ++i)
+        {
+            lattice[i] = -sqrt(fSquared);
+        }
+    }
+    */
+    
     // Create a lattice to represent the current state of the system
     HMCLattice1D currentLattice = lattice;
 
@@ -279,9 +308,16 @@ int main(int argc, const char * argv[])
         // Save original lattice.
         currentLattice = lattice;
 
-        
-        // Do a leapfrog update on the lattice.
-        lattice.leapFrog(lfStepCount, lfStepSize, temperingParameter);
+        if(config == 0)
+        {   
+            // If we are on the last update then print the Hamiltonian along the trajectory.
+            lattice.leapFrog(lfStepCount, lfStepSize, temperingParameter,hamtilonianEvolutionOutput);
+        }
+        else
+        {
+            // Do a leapfrog update on the lattice.
+            lattice.leapFrog(lfStepCount, lfStepSize, temperingParameter);
+        }
 
         // Calculate Hamiltonian after.
         double hamiltonianAfter = lattice.hamiltonian();
@@ -350,6 +386,8 @@ int main(int argc, const char * argv[])
     std::cout << progressBar;
     std::cout << "\nDone!...\n" << std::endl;
 
+
+
 /*************************************************************************************************************************
 ***************************************** Calculate Observables **********************************************************
 **************************************************************************************************************************/
@@ -376,12 +414,15 @@ int main(int argc, const char * argv[])
        
     double position 			= positionData.mean();
     double positionError 		= positionData.error();
+    double positionIAC          = positionData.integratedAutocorrelationTime(10);
 
     double positionSquared 		= positionSquaredData.mean();
     double positionSquaredError = positionSquaredData.error();
+    double positionSquaredIAC   = positionSquaredData.integratedAutocorrelationTime(10);
 
     double positionFourth 	    = positionFourthData.mean();
     double positionFourthError  = positionFourthData.error();
+    double positionFourthIAC    = positionFourthData.integratedAutocorrelationTime(10);
 
     double kineticEnergy	    = keData.mean();
     double kineticEnergyError   = keData.error();
@@ -417,10 +458,13 @@ int main(int argc, const char * argv[])
     	expdhError,
     	position,
     	positionError,
+        positionIAC,
     	positionSquared,
     	positionSquaredError,
+        positionSquaredIAC,
     	positionFourth,
     	positionFourthError,
+        positionFourthIAC,
     	gsEnergy,
     	gsEnergyError
     };
@@ -444,6 +488,20 @@ int main(int argc, const char * argv[])
     {
         correlationOutput << i << " " << correlation[i] << ' ' << correlationError[i] << '\n';
     }
+
+    // Calcualte the autocorrelation in the measurements.
+    std::vector<double> positionAutoCorrelation = positionData.autoCorrelation(0, 100);
+    std::vector<double> positionSquaredAutoCorrelation = positionSquaredData.autoCorrelation(0,100);
+    std::vector<double> positionFourthAutoCorrelation = positionFourthData.autoCorrelation(0,100);
+
+    for(int i = 0; i < positionAutoCorrelation.size(); ++i)
+    {
+        positionAutoCorrelationOutput << i << ' ' << positionAutoCorrelation[i] << '\n';
+        positionSquaredAutoCorrelationOutput << i << ' ' << positionSquaredAutoCorrelation[i] << '\n';
+        positionFourthAutoCorrelationOutput << i << ' ' << positionFourthAutoCorrelation[i] << '\n';
+
+
+    }
     
     // Output the input parameters to their file.
     inputParametersOutput << inputParameters;
@@ -456,6 +514,12 @@ int main(int argc, const char * argv[])
 
     // Output position data.
     positionOutput << positionData;
+
+    // Output position squared data.
+    positionSquaredOutput << positionSquaredData;
+
+    // Output gs energy data.
+    gsEnergyOutput << gsEnergyData;
 
 
 /**********************************************************************************************************************
